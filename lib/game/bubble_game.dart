@@ -1,0 +1,86 @@
+import 'dart:math';
+
+import 'package:flame/components.dart';
+import 'package:flame/events.dart';
+import 'package:flame/game.dart';
+import 'package:flutter/material.dart' show Color, Colors, Size;
+
+import '../components/bubble/bubble.dart';
+import '../components/bubble/bubble_config.dart';
+import '../components/bubble/bubble_style.dart';
+import '../components/lazer/lazer.dart';
+
+class BubbleGame extends FlameGame with DragCallbacks {
+  static const _backgroundAsset = 'Bg_water.png';
+  final _random = Random();
+  late final SpriteComponent _background;
+  late final LaserBeam _laser;
+
+  @override
+  Color backgroundColor() => const Color(0xFF1E1E1E);
+
+  @override
+  Future<void> onLoad() async {
+    final gameSize = size.x > 0 ? size : Vector2(800, 600);
+
+    _background = SpriteComponent(
+      sprite: await loadSprite(_backgroundAsset),
+      size: gameSize,
+      priority: -1,
+    );
+    await add(_background);
+
+    _laser = LaserBeam(
+      origin: Vector2(200, 700),
+      targetPosition: Vector2(200, 600),
+      obstacles: [_background],
+    );
+    await add(_laser);
+
+    await _spawn('Vrai', BubbleDirection.leftToRight, 15, BubbleShape.sphere,
+        const Size(110, 110), Colors.lightBlueAccent);
+    await _spawn('Faux', BubbleDirection.rightToLeft, 18, BubbleShape.sphere,
+        const Size(120, 120), Colors.purpleAccent);
+    await _spawn('Vrai', BubbleDirection.bottomToTop, 20, BubbleShape.ellipsoid,
+        const Size(180, 110), Colors.tealAccent);
+    await _spawn('Faux', BubbleDirection.topToBottom, 14, BubbleShape.sphere,
+        const Size(120, 120), Colors.amber);
+    await _spawn('Vrai', BubbleDirection.bottomToTop, 22, BubbleShape.sphere,
+        const Size(130, 130), Colors.pinkAccent);
+  }
+
+  Future<void> _spawn(String text, BubbleDirection dir, double speed,
+      BubbleShape shape, Size size, Color color) async {
+    return add(
+      Bubble(
+        position: _randomPosition(size.width / 2, size.height / 2),
+        textColor: Colors.white,
+        random: _random,
+        config: BubbleConfig(
+          text: text,
+          direction: dir,
+          speed: speed,
+          style: BubbleStyle(shape: shape, size: size, baseColor: color),
+        ),
+      ),
+    );
+  }
+  Vector2 _randomPosition(double halfW, double halfH) {
+    final gameSize = size.x > 0 ? size : Vector2(800, 600);
+    return Vector2(
+      halfW + _random.nextDouble() * (gameSize.x - 2 * halfW),
+      halfH + _random.nextDouble() * (gameSize.y - 2 * halfH),
+    );
+  }
+  @override
+  void onGameResize(Vector2 size) {
+    super.onGameResize(size);
+    if (isLoaded) _background.size = size;
+  }
+  @override
+  void onDragUpdate(DragUpdateEvent event) {
+    super.onDragUpdate(event);
+    _laser.updateTarget(event.localStartPosition);
+  }
+// _randomPosition, onDragUpdate et onGameResize restent identiques
+}
