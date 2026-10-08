@@ -1,8 +1,9 @@
+// ignore_for_file: unused_field
+
 import 'dart:math' as math;
 import 'package:flame/components.dart';
 import 'package:flutter/material.dart';
 
-import '../../domain/laser_target.dart';
 import '../../game/bubble_game.dart';
 import '../bubble/bubble.dart';
 
@@ -13,9 +14,8 @@ class LaserBeam extends PositionComponent with HasGameReference<BubbleGame> {
     required Vector2 origin,
     Vector2? targetPosition,
     this.maxLength = 1200.0,
-    this.color = const Color(0xFFFF2A2A),
-    this.thickness = 3.5,
-    this.obstacles = const [],
+    this.color = const Color.fromARGB(255, 42, 255, 209),
+    this.thickness = 3.5, required List<SpriteComponent> obstacles,
   }) : super(position: origin) {
     _targetPosition = targetPosition ?? (origin + Vector2(200, -100));
   }
@@ -24,11 +24,45 @@ class LaserBeam extends PositionComponent with HasGameReference<BubbleGame> {
   final double maxLength;
   final Color color;
   final double thickness;
-  final List<PositionComponent> obstacles;
 
   Vector2 _endPoint = Vector2.zero();
   PositionComponent? _hitTarget;
   PositionComponent? _previousTarget;
+  // ── Paints réutilisés (zéro allocation par frame) ──
+  late final Paint _outerGlow = Paint()
+    ..color = color.withValues(alpha: 0.18)
+    ..strokeWidth = thickness * 5
+    ..strokeCap = StrokeCap.round;
+
+  late final Paint _impactGlow = Paint();
+
+  late final Paint _innerGlow = Paint()
+    ..color = color.withValues(alpha: 0.75)
+    ..strokeWidth = thickness * 2.5
+    ..strokeCap = StrokeCap.round;
+
+  late final Paint _core = Paint()
+    ..color = Colors.white
+    ..strokeWidth = thickness * 0.4
+    ..strokeCap = StrokeCap.round;
+
+  final Paint _impactMid = Paint();
+  final Paint _impactCore = Paint()..color = Colors.white;
+
+  // ── Soucoupe volante (emoji, créée une seule fois) ──
+  static const double _saucerSize = 100;
+  double _saucerTime = 0;
+
+  late final TextPainter _saucer = TextPainter(
+    text: const TextSpan(
+      text: '🛸',
+      style: TextStyle(fontSize: _saucerSize),
+    ),
+    textDirection: TextDirection.ltr,
+  )..layout();
+  final Paint _saucerShadow = Paint()
+    ..color = Colors.black.withValues(alpha: 0.9)
+    ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 7);
 
   /// Returns the current hit target, if any.
   PositionComponent? get hitTarget => _hitTarget;
@@ -41,6 +75,7 @@ class LaserBeam extends PositionComponent with HasGameReference<BubbleGame> {
   @override
   void update(double dt) {
     super.update(dt);
+    _saucerTime += dt;
     _castRay(dt);
   }
 
@@ -48,119 +83,55 @@ class LaserBeam extends PositionComponent with HasGameReference<BubbleGame> {
   void _castRay(double dt) {
     final toTarget = _targetPosition - position;
     final distanceToTarget = toTarget.length;
-    if (distanceToTarget < 1e-5) return;
-
-    final dir = toTarget.normalized();
-    var closestDistance = math.min(distanceToTarget, maxLength);
-    PositionComponent? currentTarget;
-
-    // Combine explicit obstacles and all Bubble components in the game
-    final targets = <PositionComponent>[...obstacles, ...game.children.whereType<Bubble>()];
-
-    for (final target in targets) {
-      if (target == this) continue;
-
-      double? intersectionDistance;
-      if (target is LaserTarget) {
-        intersectionDistance = (target as LaserTarget).rayCast(position, dir);
-      } else {
-        final rect = target.toAbsoluteRect();
-        intersectionDistance = _intersectRect(position, dir, rect);
-      }
-
-      if (intersectionDistance != null && intersectionDistance > 0 && intersectionDistance < closestDistance) {
-        closestDistance = intersectionDistance;
-        currentTarget = target;
-      }
+    if (distanceToTarget > 1e-5) {
+      final dir = toTarget.normalized();
+      _endPoint = position + dir * math.min(distanceToTarget, maxLength);
+    } else {
+      _endPoint = position.clone();
     }
 
-    _endPoint = position + dir * closestDistance;
+    Bubble? currentTarget;
+    for (final bubble in game.children.whereType<Bubble>()) {
+      if (bubble.containsLaserPoint(_endPoint)) {
+        currentTarget = bubble;
+        break;
+      }
+    }
     _hitTarget = currentTarget;
 
-    // Notify target if it implements LaserTarget
-    if (_hitTarget is LaserTarget) {
-      (_hitTarget as LaserTarget).onLaserHit(_endPoint, dt);
+    if (currentTarget != null && currentTarget != _previousTarget) {
+      currentTarget.onLaserHit(_endPoint, dt);
     }
-
-    // Print statement when hitting or leaving a target
-    if (_hitTarget != _previousTarget) {
-      if (_hitTarget != null) {
-        // ignore: avoid_print
-        print('Laser touched target: $_hitTarget');
-      } else {
-        // ignore: avoid_print
-        print('Laser left target');
-      }
-      _previousTarget = _hitTarget;
-    }
-  }
-
-  /// Slab method for ray-rectangle intersection.
-  double? _intersectRect(Vector2 origin, Vector2 dir, Rect rect) {
-    double tMin = 0;
-    double tMax = double.infinity;
-
-    for (final axis in [0, 1]) {
-      final orig = axis == 0 ? origin.x : origin.y;
-      final dirc = axis == 0 ? dir.x : dir.y;
-      final minVal = axis == 0 ? rect.left : rect.top;
-      final maxVal = axis == 0 ? rect.right : rect.bottom;
-
-      if (dirc.abs() < 1e-9) {
-        if (orig < minVal || orig > maxVal) return null;
-      } else {
-        var t1 = (minVal - orig) / dirc;
-        var t2 = (maxVal - orig) / dirc;
-        if (t1 > t2) {
-          final temp = t1;
-          t1 = t2;
-          t2 = temp;
-        }
-        tMin = math.max(tMin, t1);
-        tMax = math.min(tMax, t2);
-        if (tMin > tMax) return null;
-      }
-    }
-    return tMin;
+    _previousTarget = currentTarget;
   }
 
   @override
   void render(Canvas canvas) {
     final endOffset = (_endPoint - position).toOffset();
 
-    // 1. Outer glow layer for "wow" neon effect
-    final outerGlow = Paint()
-      ..color = color.withValues(alpha: 0.35)
-      ..strokeWidth = thickness * 6
-      ..strokeCap = StrokeCap.round
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 10);
+    canvas.drawLine(Offset.zero, endOffset, _outerGlow);
+    canvas.drawLine(Offset.zero, endOffset, _innerGlow);
+    canvas.drawLine(Offset.zero, endOffset, _core);
 
-    // 2. Inner glow layer
-    final innerGlow = Paint()
-      ..color = color.withValues(alpha: 0.75)
-      ..strokeWidth = thickness * 2.5
-      ..strokeCap = StrokeCap.round
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4);
-
-    // 3. Core bright white-hot line
-    final core = Paint()
-      ..color = Colors.white
-      ..strokeWidth = thickness * 0.4
-      ..strokeCap = StrokeCap.round;
-
-    canvas.drawLine(Offset.zero, endOffset, outerGlow);
-    canvas.drawLine(Offset.zero, endOffset, innerGlow);
-    canvas.drawLine(Offset.zero, endOffset, core);
-
-    // Impact point with multi-layer glowing aura
     final impactColor = _hitTarget != null ? Colors.yellowAccent : color;
-    
-    final impactGlow = Paint()
-      ..color = impactColor.withValues(alpha: 0.6)
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 14);
 
-    canvas.drawCircle(endOffset, thickness * 2, impactGlow);
-    canvas.drawCircle(endOffset, thickness * 1, Paint()..color = impactColor);
-    canvas.drawCircle(endOffset, thickness * 0.6, Paint()..color = Colors.white);
+    _impactGlow.color = impactColor.withValues(alpha: 0.6);
+    canvas.drawCircle(endOffset, thickness * 2, _impactGlow);
+
+    _impactMid.color = impactColor;
+    canvas.drawCircle(endOffset, thickness, _impactMid);
+    canvas.drawCircle(endOffset, thickness * 0.6, _impactCore);
+
+    final bob = math.sin(_saucerTime * 2) * 2;
+    canvas.drawOval(
+      Rect.fromCenter(center: const Offset(0, 100), width: 100, height: 20),
+      _saucerShadow,
+    );
+    canvas
+      ..save()
+      ..translate(0, bob)
+      ..rotate(-15 * math.pi / 180);
+    _saucer.paint(canvas, Offset(-_saucer.width / 2-10, -_saucer.height / 2 + 45));
+    canvas.restore();
   }
 }

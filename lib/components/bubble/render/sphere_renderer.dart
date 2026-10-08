@@ -1,3 +1,5 @@
+// ignore_for_file: unused_field
+
 import 'dart:math';
 import 'dart:ui';
 
@@ -52,7 +54,6 @@ class SphereRenderer implements BubbleRenderer {
     _iris = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = r * 0.09
-      ..maskFilter = MaskFilter.blur(BlurStyle.normal, r * 0.03)
       ..shader = SweepGradient(colors: [
         const Color(0xFFFF7BD5).withValues(alpha: 0.5 * k),
         const Color(0xFF6CF0FF).withValues(alpha: 0.5 * k),
@@ -65,7 +66,6 @@ class SphereRenderer implements BubbleRenderer {
     _iris2 = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = r * 0.05
-      ..maskFilter = MaskFilter.blur(BlurStyle.normal, r * 0.025)
       ..shader = SweepGradient(colors: [
         const Color(0xFF6CF0FF).withValues(alpha: 0.35 * k),
         const Color(0xFFB07BFF).withValues(alpha: 0.35 * k),
@@ -82,11 +82,10 @@ class SphereRenderer implements BubbleRenderer {
       ..color = _rimColor.withValues(alpha: _rimAlpha);
 
     // Highlights
-    _arcTL = _stroke(r * 0.05, base.withValues(alpha: 0.85), blur: 2);
-    _arcBR = _stroke(r * 0.05, const Color(0xFFDCEBFF).withValues(alpha: 0.6), blur: 3);
+    _arcTL = _stroke(r * 0.05, base.withValues(alpha: 0.85));
+    _arcBR = _stroke(r * 0.05, const Color(0xFFDCEBFF).withValues(alpha: 0.6));
     _specGlow = Paint()
-      ..color = const Color(0xFFFFFFFF).withValues(alpha: 0.5)
-      ..maskFilter = MaskFilter.blur(BlurStyle.normal, r * 0.04);
+      ..color = const Color(0xFFFFFFFF).withValues(alpha: 0.5);
     _spec = Paint()..color = const Color(0xFFFFFFFF).withValues(alpha: 0.95);
 
     // Direction: top-left, centered on crescent _arcTL (3.3 → 4.6 rad).
@@ -138,6 +137,8 @@ class SphereRenderer implements BubbleRenderer {
   late final double _rimAlpha;
 
   double _t = 0;
+  double _causticAcc = 0;
+  bool _causticReady = false;
   double _sx = 1, _sy = 1; // "breathing" deformation
   double _poke = 0, _pokeT = 99; // impulse (damped spring)
 
@@ -165,13 +166,15 @@ class SphereRenderer implements BubbleRenderer {
     _pokeT = 0;
   }
 
-  void _updateCaustic() {
-    final t = _t + _phase;
+    void _updateCaustic() {
+    // Shader créé une seule fois (le mouvement est fait par le canvas)
+    if (_causticReady) return;
+    _causticReady = true;
     _caustic.shader = RadialGradient(
-      center: Alignment(0.45 + 0.12 * sin(t * 0.7), 0.55 + 0.10 * cos(t * 0.9)),
-      radius: 0.55 + 0.04 * sin(t * 1.3),
+      center: const Alignment(0.45, 0.55),
+      radius: 0.55,
       colors: [
-        _base.withValues(alpha: 0.30 + 0.08 * sin(t * 1.1)),
+        _base.withValues(alpha: 0.30),
         _base.withValues(alpha: 0.0),
       ],
     ).createShader(_rect);
@@ -205,13 +208,17 @@ class SphereRenderer implements BubbleRenderer {
     _sy = 1 / _sx;
 
     // Iridescent film pulses
-    _iris.strokeWidth = _r * (0.09 + 0.02 * sin(p * 1.6));
-    _iris2.strokeWidth = _r * (0.05 + 0.012 * sin(p * 2.1 + 1));
+    // _iris.strokeWidth = _r * (0.09 + 0.02 * sin(p * 1.6));
+    // _iris2.strokeWidth = _r * (0.05 + 0.012 * sin(p * 2.1 + 1));
 
     // Edge glimmers slightly
     _rim.color = _rimColor.withValues(alpha: (_rimAlpha * (0.85 + 0.15 * sin(p * 1.8))).clamp(0.0, 1.0));
 
-    _updateCaustic();
+    _causticAcc += dt;
+    if (_causticAcc >= 0.05) {
+      _causticAcc = 0;
+      _updateCaustic();
+    }
   }
 
   @override
@@ -219,7 +226,11 @@ class SphereRenderer implements BubbleRenderer {
     final p = _t + _phase;
     c.drawCircle(_c, _r, _body);
     c.drawCircle(_c, _r, _shade);
-    c.drawCircle(_c, _r * 0.97, _caustic);
+        c
+      ..save()
+      ..translate(_r * 0.05 * sin(p * 0.7), _r * 0.05 * cos(p * 0.9))
+      ..drawCircle(_c, _r * 0.97, _caustic)
+      ..restore();
 
     // Iridescent film 1 (clockwise)
     c
@@ -258,9 +269,6 @@ class SphereRenderer implements BubbleRenderer {
       ..save()
       ..translate(_c.dx, _c.dy)
       ..rotate(_specTheta + 0.05 * sin(p * 1.2));
-
-    _specGlow.color = white.withValues(alpha: 0.5 * tw);
-    c.drawPath(_specPath, _specGlow); // halo
 
     _spec.color = white.withValues(alpha: 0.95 * tw);
     c.drawPath(_specPath, _spec);             // core

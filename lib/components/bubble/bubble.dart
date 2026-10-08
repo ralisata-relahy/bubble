@@ -1,11 +1,16 @@
+// ignore_for_file: implementation_imports
+
 import 'dart:math';
 import 'dart:math' as math;
 import 'dart:ui';
 
 import 'package:flame/components.dart';
+import 'package:flame_audio/flame_audio.dart';
 import 'package:flutter/material.dart'
     show Canvas, FontWeight, Colors, RadialGradient;
+import 'package:flutter/src/painting/text_style.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:vibration/vibration.dart';
 
 import '../../domain/laser_target.dart';
 import '../../game/bubble_game.dart';
@@ -17,11 +22,13 @@ import 'render/bubble_renderer.dart';
 class Bubble extends PositionComponent
     with HasGameReference<BubbleGame>
     implements LaserTarget {
+  /// Crée une bulle à la position et avec le style demandés.
   Bubble({
     required Vector2 position,
     this.config = const BubbleConfig(),
     this.textColor = Colors.white,
     this.canPop = _defaultCanPop,
+    this.isBurstBubble = false,
     Random? random,
   }) : _random = random ?? Random(),
        super(
@@ -36,32 +43,39 @@ class Bubble extends PositionComponent
   /// Règle: reçoit le texte de la bulle, renvoie true si elle est "vraie"
   /// (elle explose et disparaît). Sinon elle explose puis revient en rouge.
   final bool Function(String text) canPop;
+  final bool isBurstBubble;
 
+  /// Détermine si le texte désigne une bulle qui disparaît définitivement.
   static bool _defaultCanPop(String t) {
     final s = t.trim().toLowerCase();
     return s == 'vrai' || s == 'vraie';
   }
 
   final Random _random;
+
+  /// Indique si le texte actuel fait de cette bulle une cible correcte.
   bool get isTarget => canPop(_text);
 
   // ── Texte (conservé même quand le label est retiré pendant l'explosion) ──
   String _text = '';
   BubbleLabel? _label;
-
-  late final BubbleRenderer _renderer;
+  late BubbleRenderer _renderer;
   late final Vector2 _dir;
   late final Vector2 _perp;
   late final Vector2 _centerBase;
   late double _t;
   double _squash = 0;
+  double _rendererAcc = 0;
 
   // ── Rouge ──
   double _redness = 0; // 0 = normal, 1 = tout rouge
   bool _isRed = false;
   static const Color _redColor = Color(0xFFFF1E1E);
 
+  /// Renvoie la moitié de la largeur de la bulle.
   double get _halfW => size.x / 2;
+
+  /// Renvoie la moitié de la hauteur de la bulle.
   double get _halfH => size.y / 2;
 
   // ── Laser (chauffe) ──
@@ -77,8 +91,8 @@ class Bubble extends PositionComponent
   static const double _holeDuration = 0.14;
   static const double _holeFrac = _holeDuration / _popDuration;
 
-  /// Une bulle "fausse" revient 2 s après l'impact.
-  static const double _returnDelay = 2.0;
+  /// Délai d'attente après l'explosion avant le retour d'une bulle fausse.
+  static const double _returnDelay = 0.5;
   bool _returnsAfterPop = false;
 
   // ── Invisible en attendant de revenir ──
@@ -86,20 +100,20 @@ class Bubble extends PositionComponent
   double _hiddenTimer = 0;
   double _opacity = 1.0;
 
-  double _popStartScale = 1.0;
   Offset _popOrigin = Offset.zero;
   double _popMaxHole = 1.0;
   final List<_PopParticle> _particles = [];
 
+  /// Calcule le rayon du trou selon l'avancement de l'explosion.
   double get _holeRadius =>
       _popMaxHole * (_popProgress / _holeFrac).clamp(0.0, 1.0);
 
   // ── Objets de dessin réutilisés (zéro allocation par frame) ──
   late final Rect _layerBounds = Rect.fromLTWH(
-    -size.x * 0.5,
-    -size.y * 0.5,
-    size.x * 2,
-    size.y * 2,
+    -size.x * 0.35,
+    -size.y * 0.35,
+    size.x * 1.7,
+    size.y * 1.7,
   );
   late final Path _ovalPath = Path()
     ..addOval(Rect.fromLTWH(0, 0, size.x, size.y));
@@ -110,13 +124,58 @@ class Bubble extends PositionComponent
   final Paint _dropPaint = Paint();
   final Paint _rimPaint = Paint()
     ..style = PaintingStyle.stroke
-    ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 1.5);
+    ..isAntiAlias = true;
   final Paint _haloPaint = Paint()
     ..style = PaintingStyle.stroke
-    ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3);
-  static const MaskFilter _bigDropBlur = MaskFilter.blur(BlurStyle.normal, 1.5);
+    ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2);
+  static const MaskFilter _bigDropBlur = MaskFilter.blur(BlurStyle.normal, 1.0);
 
+  // ── Effet de chauffe (objets réutilisés) ──
+  final Paint _heatGlowPaint = Paint()
+    ..blendMode = BlendMode.plus
+    ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8);
+
+  // Shader unitaire (rayon 1, centré en 0,0), créé UNE seule fois.
+  // On le déplace/agrandit avec le canvas au lieu de le recréer.
+  late final Shader _heatShader = const RadialGradient(
+    colors: [Colors.white, Color(0xB3FF2A2A), Color(0x00FF2A2A)],
+    stops: [0, 0.4, 1],
+  ).createShader(Rect.fromCircle(center: Offset.zero, radius: 1));
+
+  late final Paint _heatCorePaint = Paint()
+    ..blendMode = BlendMode.plus
+    ..shader = _heatShader;
+  final List<double> _tintMatrix = List<double>.filled(20, 0);
+  double _lastTintRed = -1;
+  double _lastTintOpacity = -1;
   // ───────────────────────── Texte ─────────────────────────
+
+  // ── Style du label (créé une seule fois) ──
+  late final TextStyle _labelStyle = () {
+    final shortSide = min(size.x, size.y);
+    return GoogleFonts.poppins(
+      color: textColor,
+      fontSize: shortSide * 0.3,
+      fontWeight: FontWeight.bold,
+      shadows: [
+        Shadow(
+          color: Colors.black45,
+          offset: Offset(0, shortSide * 0.015),
+          blurRadius: shortSide * 0.03,
+        ),
+      ],
+    );
+  }();
+  // ── Vibration: vérifiée une seule fois pour toutes les bulles ──
+  static bool _canVibrate = false;
+  static bool _vibrationChecked = false;
+
+  /// Vérifie une seule fois si l'appareil prend en charge la vibration.
+  static Future<void> _checkVibration() async {
+    if (_vibrationChecked) return;
+    _vibrationChecked = true;
+    _canVibrate = await Vibration.hasVibrator();
+  }
 
   /// Texte vide = pas de label.
   set text(String value) {
@@ -125,8 +184,10 @@ class Bubble extends PositionComponent
     _syncLabel();
   }
 
+  /// Renvoie le texte affiché dans la bulle.
   String get text => _text;
 
+  /// Crée, met à jour ou retire le label selon le texte actuel.
   void _syncLabel() {
     final label = _label;
     if (_text.isEmpty) {
@@ -140,17 +201,28 @@ class Bubble extends PositionComponent
     }
   }
 
+  /// Joue le son correspondant au résultat et vibre pour une réponse fausse.
+  void playEffect() {
+    if (isTarget) {
+      FlameAudio.play('bouble_pop.mp3');
+    } else {
+      if (_canVibrate) Vibration.vibrate(duration: 50);
+      FlameAudio.play('e-ho.mp3');
+    }
+  }
+
   // ───────────────────────── Explosion ─────────────────────────
 
+  /// Lance l'explosion et prépare ses particules.
   void pop() {
     if (_isPopping || _isHidden) return;
 
     // Décidé AVANT de toucher au label
     _returnsAfterPop = !isTarget;
-
+    if(isTarget)game.onTrueBubblePopped();
+    playEffect();
     _isPopping = true;
     _popProgress = 0;
-    _popStartScale = _inflationScale;
     _label?.removeFromParent();
     _label = null;
 
@@ -169,9 +241,15 @@ class Bubble extends PositionComponent
 
     final dropColor = _isRed ? const Color(0xFFFF3B3B) : config.style.baseColor;
 
+    if (!_returnsAfterPop) {
+      final impactPosition =
+          absoluteCenter + Vector2(_popOrigin.dx - rx, _popOrigin.dy - ry);
+      _spawnPopBubbles(impactPosition);
+    }
+
     // Moins de particules = beaucoup moins de travail par frame
     _particles.clear();
-    final count = 34 + _random.nextInt(10);
+    final count = 22 + _random.nextInt(7);
     for (var i = 0; i < count; i++) {
       final a = _random.nextDouble() * 2 * pi;
       final start = center + Offset(cos(a) * rx, sin(a) * ry);
@@ -207,6 +285,35 @@ class Bubble extends PositionComponent
     }
   }
 
+  /// Crée des bulles réelles qui se dispersent depuis le point d'impact.
+  void _spawnPopBubbles(Vector2 origin) {
+    const count = 5;
+    final style = config.style.copyWith(size: const Size(60, 60));
+    final List<String> key= [
+      "Hello","Mada","Inde","France","Paris"
+    ];
+    for (var i = 0; i < count; i++) {
+      final angle = _random.nextDouble() * 2 * pi;
+      game.add(
+        Bubble(
+          position: origin.clone(),
+          textColor: textColor, 
+          random: _random,
+          isBurstBubble: true,
+          config: BubbleConfig(
+            style: style,
+            text: key[i],
+            speed: 70 + _random.nextDouble() * 180,
+            customDirection: Vector2(cos(angle), sin(angle)),
+            waveAmplitude: 0,
+            maxLines: config.maxLines,
+            autoFit: config.autoFit,
+          ),
+        ),
+      );
+    }
+  }
+
   /// Fin de l'animation: vraie = supprimée, fausse = invisible en attendant de revenir.
   void _finishPop() {
     if (!_returnsAfterPop) {
@@ -221,23 +328,41 @@ class Bubble extends PositionComponent
     _heatIntensity = 0;
     _hitTimeToLive = 0;
     _inflationScale = 1.0;
-    // 2 s au total depuis l'impact
-    _hiddenTimer = math.max(0.0, _returnDelay - _popDuration);
+    _hiddenTimer = _returnDelay;
   }
 
-  /// Retour de la bulle fausse: rouge, avec fondu d'apparition.
+  /// Fait réapparaître une bulle fausse en rouge et complètement opaque.
   void _comeBack() {
     _isHidden = false;
     _isRed = true;
-    _redness = 1.0;
-    _opacity = 0;
+    _renderer = BubbleRenderer(
+      config.style
+          .tinted(_redColor)
+          .copyWith(
+            bodyCenterAlpha: 0.8,
+            bodyMidAlpha: 0.3,
+            bodyEdgeAlpha: 0.7,
+          ),
+    );
+    _opacity = 1;
     _syncLabel();
   }
 
   // ───────────────────────── Laser ─────────────────────────
 
+  /// Indique si la pointe du laser se trouve à l'intérieur de la bulle.
+  bool containsLaserPoint(Vector2 point) {
+    if (isBurstBubble) return false;
+    final center = absoluteCenter;
+    final dx = (point.x - center.x) / _halfW;
+    final dy = (point.y - center.y) / _halfH;
+    return dx * dx + dy * dy <= 1;
+  }
+
+  /// Renvoie la distance de la première intersection du rayon avec la bulle.
   @override
   double? rayCast(Vector2 origin, Vector2 direction) {
+    if (isBurstBubble) return null;
     if (_isPopping || _isHidden || _opacity < 0.8) return null;
 
     final center = absoluteCenter;
@@ -263,8 +388,10 @@ class Bubble extends PositionComponent
     return null;
   }
 
+  /// Enregistre l'impact du laser et déclenche l'explosion.
   @override
   void onLaserHit(Vector2 point, double dt) {
+    if (isBurstBubble) return;
     if (_isPopping || _isHidden) return;
 
     final center = absoluteCenter;
@@ -280,8 +407,11 @@ class Bubble extends PositionComponent
 
   // ───────────────────────── Cycle de vie ─────────────────────────
 
+  /// Charge les sons et initialise l'affichage et le mouvement de la bulle.
   @override
   Future<void> onLoad() async {
+    await FlameAudio.audioCache.loadAll(['bouble_pop.mp3', 'e-ho.mp3']);
+    _checkVibration(); // pas de await: on ne bloque pas le chargement
     _renderer = BubbleRenderer(config.style);
     _dir = config.directionVector;
     _perp = Vector2(-_dir.y, _dir.x);
@@ -297,8 +427,8 @@ class Bubble extends PositionComponent
     await add(_BubbleGloss());
   }
 
+  /// Construit le label en tenant compte de la forme et du style de la bulle.
   BubbleLabel _buildLabel(String value) {
-    final shortSide = min(size.x, size.y);
     final isCube = config.style.shape == BubbleShape.cube;
 
     return BubbleLabel(
@@ -308,27 +438,14 @@ class Bubble extends PositionComponent
       maxLines: config.maxLines,
       autoFit: config.autoFit,
       deform: paintDeformed,
-      style: GoogleFonts.poppins(
-        color: textColor,
-        fontSize: shortSide * 0.3,
-        fontWeight: FontWeight.bold,
-        shadows: [
-          Shadow(
-            color: Colors.black45,
-            offset: Offset(0, shortSide * 0.015),
-            blurRadius: shortSide * 0.03,
-          ),
-        ],
-      ),
+      style: _labelStyle,
     );
   }
 
+  /// Met à jour le mouvement, l'explosion, la visibilité et les effets.
   @override
   void update(double dt) {
     super.update(dt);
-
-    _t += dt;
-    _drift(dt);
 
     // 1) Explosion en cours
     if (_isPopping) {
@@ -341,12 +458,18 @@ class Bubble extends PositionComponent
     if (_isHidden) {
       _hiddenTimer -= dt;
       if (_hiddenTimer <= 0) _comeBack();
-      if (_isOffScreen()) _respawn();
       return;
     }
 
     // 3) Normal
-    _renderer.update(dt);
+    _t += dt;
+    _drift(dt);
+
+    _rendererAcc += dt;
+    if (_rendererAcc >= 1 / 30) {
+      _renderer.update(_rendererAcc);
+      _rendererAcc = 0;
+    }
     _breathe();
 
     if (_hitTimeToLive > 0) {
@@ -360,11 +483,16 @@ class Bubble extends PositionComponent
         ? math.min(1.0, _redness + dt * 6.0)
         : math.max(0.0, _redness - dt * 1.5);
 
-    _opacity = math.min(1.0, _opacity + dt * 2.0); // réapparition en ~0,5 s
-
-    if (_isOffScreen()) _respawn();
+    if (_isOffScreen()) {
+      if (isBurstBubble) {
+        removeFromParent();
+      } else {
+        _respawn();
+      }
+    }
   }
 
+  /// Fait dériver la bulle le long de sa direction avec un mouvement ondulé.
   void _drift(double dt) {
     _centerBase.add(_dir * (config.speed * dt));
     final wave =
@@ -372,10 +500,12 @@ class Bubble extends PositionComponent
     position.setFrom(_centerBase + wave);
   }
 
+  /// Calcule la déformation périodique de respiration de la bulle.
   void _breathe() {
     _squash = config.breathAmplitude * sin(_t * config.breathSpeed);
   }
 
+  /// Indique si la bulle a entièrement quitté les limites de l'écran.
   bool _isOffScreen() {
     if (_dir.x > 0 && position.x - _halfW > game.size.x) return true;
     if (_dir.x < 0 && position.x + _halfW < 0) return true;
@@ -384,6 +514,7 @@ class Bubble extends PositionComponent
     return false;
   }
 
+  /// Replace la bulle au bord de l'écran pour son prochain passage.
   void _respawn() {
     double x = position.x;
     double y = position.y;
@@ -441,25 +572,33 @@ class Bubble extends PositionComponent
   }
 
   /// Corps de la bulle: UN SEUL layer pour teinte rouge + fondu + trou.
+  /// Dessine le corps en appliquant la teinte, le fondu et le trou éventuels.
   void _paintBody(Canvas canvas, {bool hole = false}) {
-    final tinted = _redness > 0.01;
+    const tinted = false; // le rouge est maintenant dans le renderer
     final fading = _opacity < 0.999;
     final layered = tinted || fading || hole;
 
     if (layered) {
       if (tinted || fading) {
-        // Teinte rouge (uniquement sur les pixels de la bulle) + opacité,
-        // appliquées en une seule passe par une matrice de couleur.
-        final k = 0.85 * _redness;
-        final i = 1 - k;
-        _layerPaint.colorFilter = ColorFilter.matrix(<double>[
-          i, 0, 0, 0, 255 * k, //
-          0, i, 0, 0, 30 * k,
-          0, 0, i, 0, 30 * k,
-          0, 0, 0, _opacity, 0,
-        ]);
+        // On ne reconstruit le filtre que si les valeurs ont changé.
+        if (_redness != _lastTintRed || _opacity != _lastTintOpacity) {
+          final k = 0.85 * _redness;
+          final i = 1 - k;
+          _tintMatrix
+            ..[0] = i
+            ..[6] = i
+            ..[12] = i
+            ..[4] = 255 * k
+            ..[9] = 30 * k
+            ..[14] = 30 * k
+            ..[18] = _opacity;
+          _layerPaint.colorFilter = ColorFilter.matrix(_tintMatrix);
+          _lastTintRed = _redness;
+          _lastTintOpacity = _opacity;
+        }
       } else {
         _layerPaint.colorFilter = null;
+        _lastTintRed = -1; // force la reconstruction au prochain besoin
       }
       canvas.saveLayer(_layerBounds, _layerPaint);
     }
@@ -470,6 +609,7 @@ class Bubble extends PositionComponent
     if (layered) canvas.restore();
   }
 
+  /// Dessine le film restant et les particules pendant l'explosion.
   void _renderPop(Canvas canvas) {
     final p = _popProgress.clamp(0.0, 1.0);
     final shortSide = math.min(size.x, size.y);
@@ -533,9 +673,20 @@ class Bubble extends PositionComponent
     }
   }
 
+  /// Vrai si la bulle (avec une marge pour la déformation) touche l'écran.
+  bool _isVisibleOnScreen() {
+    final mx = _halfW * 1.5;
+    final my = _halfH * 1.5;
+    return position.x + mx > 0 &&
+        position.x - mx < game.size.x &&
+        position.y + my > 0 &&
+        position.y - my < game.size.y;
+  }
+
+  /// Dessine la bulle, ses effets de chauffe ou son animation d'explosion.
   @override
   void render(Canvas canvas) {
-    if (_isHidden) return;
+    if (_isHidden || !_isVisibleOnScreen()) return;
     if (_isPopping) {
       _renderPop(canvas);
       return;
@@ -553,30 +704,20 @@ class Bubble extends PositionComponent
       );
       final radius = math.min(size.x, size.y) * (0.3 + 0.2 * _heatIntensity);
 
-      canvas.drawCircle(
-        impactPoint,
-        radius * 1.2,
-        Paint()
-          ..blendMode = BlendMode.plus
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8)
-          ..color = const Color(0xFFFF2A2A)
-              .withValues(alpha: 0.7 * _heatIntensity),
-      );
+      // Halo flou
+      _heatGlowPaint.color = const Color(0xFFFF2A2A)
+          .withValues(alpha: 0.7 * _heatIntensity);
+      canvas.drawCircle(impactPoint, radius * 1.2, _heatGlowPaint);
 
-      canvas.drawCircle(
-        impactPoint,
-        radius,
-        Paint()
-          ..blendMode = BlendMode.plus
-          ..shader = RadialGradient(
-            colors: [
-              Colors.white.withValues(alpha: _heatIntensity),
-              const Color(0xFFFF2A2A).withValues(alpha: 0.7 * _heatIntensity),
-              const Color(0x00FF2A2A),
-            ],
-            stops: const [0, 0.4, 1],
-          ).createShader(Rect.fromCircle(center: impactPoint, radius: radius)),
-      );
+      // Cœur: le shader unitaire est placé et agrandi via le canvas
+      _heatCorePaint.color = Colors.white.withValues(alpha: _heatIntensity);
+      canvas
+        ..save()
+        ..translate(impactPoint.dx, impactPoint.dy)
+        ..scale(radius)
+        ..drawCircle(Offset.zero, 1, _heatCorePaint)
+        ..restore();
+
       canvas.restore();
     }
   }
@@ -584,22 +725,20 @@ class Bubble extends PositionComponent
 
 /// Gloss layer: high priority child, drawn after text.
 class _BubbleGloss extends PositionComponent with ParentIsA<Bubble> {
+  /// Crée la couche brillante dessinée au-dessus du texte.
   _BubbleGloss() : super(priority: 10);
 
+  /// Dessine le reflet si la bulle est visible et n'est pas en explosion.
   @override
   void render(Canvas canvas) {
-    if (parent._isHidden) return;
-    if (parent._isPopping) {
-      if (parent._holeRadius < parent._popMaxHole) {
-        parent.paintPopped(canvas, parent._renderer.paintGloss);
-      }
-      return;
-    }
+    if (parent._isHidden || !parent._isVisibleOnScreen()) return;
+    if (parent._isPopping) return;
     parent.paintDeformed(canvas, parent._renderer.paintGloss);
   }
 }
 
 class _PopParticle {
+  /// Initialise une particule avec ses paramètres de mouvement et d'apparence.
   _PopParticle({
     required this.start,
     required this.dir,
