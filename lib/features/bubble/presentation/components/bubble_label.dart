@@ -1,6 +1,6 @@
 import 'package:flame/components.dart';
 import 'package:flutter/painting.dart';
-import 'render/bubble_text_helper.dart';
+import 'package:bubble/features/bubble/presentation/rendering/bubble_text_helper.dart';
 
 class BubbleLabel extends PositionComponent {
   BubbleLabel({

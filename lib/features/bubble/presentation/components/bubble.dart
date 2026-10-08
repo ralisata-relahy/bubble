@@ -1,10 +1,11 @@
-// ignore_for_file: implementation_imports
+// ignore_for_file: implementation_imports, unused_field
 
 import 'dart:math';
 import 'dart:math' as math;
 import 'dart:ui';
 
 import 'package:flame/components.dart';
+import 'package:flame/game.dart';
 import 'package:flame_audio/flame_audio.dart';
 import 'package:flutter/material.dart'
     show Canvas, FontWeight, Colors, RadialGradient;
@@ -12,25 +13,26 @@ import 'package:flutter/src/painting/text_style.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:vibration/vibration.dart';
 
-import '../../domain/laser_target.dart';
-import '../../game/bubble_game.dart';
-import 'bubble_config.dart';
+import 'package:bubble/features/bubble/models/bubble_config.dart';
+import 'package:bubble/features/bubble/models/bubble_style.dart';
+import 'package:bubble/features/bubble/presentation/rendering/bubble_renderer.dart';
+import 'package:bubble/core/contracts/laser_target.dart';
+
 import 'bubble_label.dart';
-import 'bubble_style.dart';
-import 'render/bubble_renderer.dart';
 
 class Bubble extends PositionComponent
-    with HasGameReference<BubbleGame>
+    with HasGameReference<FlameGame>
     implements LaserTarget {
   /// Crée une bulle à la position et avec le style demandés.
   Bubble({
-    required Vector2 position,
-    this.config = const BubbleConfig(),
-    this.textColor = Colors.white,
-    this.canPop = _defaultCanPop,
-    this.isBurstBubble = false,
-    Random? random,
-  }) : _random = random ?? Random(),
+  required Vector2 position,
+  this.config = const BubbleConfig(),
+  this.textColor = Colors.white,
+  this.canPop = _defaultCanPop,
+  this.isBurstBubble = false,
+  this.onTargetPopped,
+  Random? random,
+}) : _random = random ?? Random(),
        super(
          position: position,
          size: Vector2(config.style.size.width, config.style.size.height),
@@ -44,7 +46,8 @@ class Bubble extends PositionComponent
   /// (elle explose et disparaît). Sinon elle explose puis revient en rouge.
   final bool Function(String text) canPop;
   final bool isBurstBubble;
-
+  /// Appelé lorsqu'une vraie bulle est correctement touchée.
+  final void Function()? onTargetPopped;
   /// Détermine si le texte désigne une bulle qui disparaît définitivement.
   static bool _defaultCanPop(String t) {
     final s = t.trim().toLowerCase();
@@ -218,9 +221,13 @@ class Bubble extends PositionComponent
     if (_isPopping || _isHidden) return;
 
     // Décidé AVANT de toucher au label
-    _returnsAfterPop = !isTarget;
-    if(isTarget)game.onTrueBubblePopped();
-    playEffect();
+   _returnsAfterPop = !isTarget;
+
+  if (isTarget) {
+    onTargetPopped?.call();
+  }
+
+  playEffect();
     _isPopping = true;
     _popProgress = 0;
     _label?.removeFromParent();
@@ -297,7 +304,7 @@ class Bubble extends PositionComponent
       game.add(
         Bubble(
           position: origin.clone(),
-          textColor: textColor, 
+          textColor: textColor,
           random: _random,
           isBurstBubble: true,
           config: BubbleConfig(

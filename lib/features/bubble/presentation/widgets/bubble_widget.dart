@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import '../bubble_style.dart';
-import '../render/bubble_renderer.dart';
-import '../render/bubble_text_helper.dart';
+import 'package:bubble/features/bubble/models/bubble_style.dart';
+import 'package:bubble/features/bubble/presentation/rendering/bubble_renderer.dart';
+import 'package:bubble/features/bubble/presentation/rendering/bubble_text_helper.dart';
 
 /// A reusable Flutter Widget that renders a bubble (Sphere, Ellipsoid, or 3D Cube)
 /// for standard UI displays, posters, cards, or screens without requiring a Flame game.

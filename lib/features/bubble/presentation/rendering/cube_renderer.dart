@@ -1,7 +1,8 @@
 import 'dart:math';
 import 'dart:ui';
 
-import '../bubble_style.dart';
+import 'package:bubble/features/bubble/models/bubble_style.dart';
+
 import 'bubble_renderer.dart';
 import 'cube/cube_face.dart';
 import 'cube/cube_motion.dart';

@@ -6,30 +6,35 @@ import 'package:flame/game.dart';
 import 'package:flutter/material.dart'
     show Color, Colors, Size, TextStyle, FontWeight;
 
-import '../components/win/win_overlay.dart';
-import '../components/bubble/bubble.dart';
-import '../components/bubble/bubble_config.dart';
-import '../components/bubble/bubble_style.dart';
-import '../components/lazer/lazer.dart';
+import 'package:bubble/features/bubble/models/bubble_config.dart';
+import 'package:bubble/features/bubble/models/bubble_style.dart';
+import 'package:bubble/features/bubble/presentation/components/bubble.dart';
+import 'package:bubble/features/game/presentation/components/laser_beam.dart';
+
+import '../../../components/win/win_overlay.dart';
 
 class BubbleGame extends FlameGame with DragCallbacks {
+  static const backgroundAsset = 'Bg_water.webp';
+  static const int targetCount = 5;
+
   final _random = Random();
+
   late final SpriteComponent _background;
   late LaserBeam _laser;
   late final TextComponent _hud;
+
   WinOverlay? _overlay;
 
-  /// Nombre de bulles vraies à éclater pour gagner.
-  static const int targetCount = 5;
   int _popped = 0;
   bool _won = false;
+
   @override
   Color backgroundColor() => const Color(0xFF1E1E1E);
 
   @override
   Future<void> onLoad() async {
     final gameSize = size.x > 0 ? size : Vector2(800, 600);
-    const backgroundAsset = 'Bg_water.webp';
+
     _background = SpriteComponent(
       sprite: await loadSprite(backgroundAsset),
       size: gameSize,
@@ -70,6 +75,7 @@ class BubbleGame extends FlameGame with DragCallbacks {
       const Size(110, 110),
       Colors.lightBlueAccent,
     );
+
     await _spawn(
       'Faux',
       BubbleDirection.rightToLeft,
@@ -78,6 +84,7 @@ class BubbleGame extends FlameGame with DragCallbacks {
       const Size(120, 120),
       Colors.purpleAccent,
     );
+
     await _spawn(
       'Vrai',
       BubbleDirection.bottomToTop,
@@ -86,6 +93,7 @@ class BubbleGame extends FlameGame with DragCallbacks {
       const Size(180, 110),
       Colors.tealAccent,
     );
+
     await _spawn(
       'Faux',
       BubbleDirection.topToBottom,
@@ -94,6 +102,7 @@ class BubbleGame extends FlameGame with DragCallbacks {
       const Size(120, 120),
       Colors.amber,
     );
+
     await _spawn(
       'Vrai',
       BubbleDirection.bottomToTop,
@@ -117,11 +126,20 @@ class BubbleGame extends FlameGame with DragCallbacks {
         position: _randomPosition(size.width / 2, size.height / 2),
         textColor: Colors.white,
         random: _random,
+
+        // Permet à Bubble de notifier le jeu lorsqu'une vraie
+        // bulle est correctement touchée.
+        onTargetPopped: onTrueBubblePopped,
+
         config: BubbleConfig(
           text: text,
           direction: dir,
           speed: speed,
-          style: BubbleStyle(shape: shape, size: size, baseColor: color),
+          style: BubbleStyle(
+            shape: shape,
+            size: size,
+            baseColor: color,
+          ),
         ),
       ),
     );
@@ -129,54 +147,67 @@ class BubbleGame extends FlameGame with DragCallbacks {
 
   Vector2 _randomPosition(double halfW, double halfH) {
     final gameSize = size.x > 0 ? size : Vector2(800, 600);
+
     return Vector2(
       halfW + _random.nextDouble() * (gameSize.x - 2 * halfW),
       halfH + _random.nextDouble() * (gameSize.y - 2 * halfH),
     );
   }
 
-  /// Appelée par une bulle vraie au moment où elle éclate.
+  /// Appelée par une vraie bulle au moment où elle éclate.
   void onTrueBubblePopped() {
     if (_won) return;
+
     _popped++;
     _hud.text = '$_popped / $targetCount';
 
     if (_popped >= targetCount) {
       _win();
-    } else {
-      // Remplace la bulle vraie supprimée
-      _spawn(
-        'Vrai',
-        BubbleDirection.values[_random.nextInt(BubbleDirection.values.length)],
-        14 + _random.nextInt(10).toDouble(),
-        BubbleShape.sphere,
-        const Size(120, 120),
-        Colors.lightBlueAccent,
-      );
+      return;
     }
+
+    // Remplace la bulle vraie supprimée.
+    _spawn(
+      'Vrai',
+      BubbleDirection.values[
+        _random.nextInt(BubbleDirection.values.length)
+      ],
+      14 + _random.nextInt(10).toDouble(),
+      BubbleShape.sphere,
+      const Size(120, 120),
+      Colors.lightBlueAccent,
+    );
   }
 
   void _win() {
+    if (_won) return;
+
     _won = true;
     _laser.removeFromParent();
-    add(_overlay = WinOverlay(score: _popped));
+
+    _overlay = WinOverlay(score: _popped);
+    add(_overlay!);
   }
 
   void restart() {
     _overlay?.removeFromParent();
     _overlay = null;
-    for (final b in children.whereType<Bubble>().toList()) {
-      b.removeFromParent();
+
+    for (final bubble in children.whereType<Bubble>().toList()) {
+      bubble.removeFromParent();
     }
+
     _popped = 0;
     _won = false;
     _hud.text = '0 / $targetCount';
+
     _startRound();
   }
 
   @override
   void onGameResize(Vector2 size) {
     super.onGameResize(size);
+
     if (isLoaded) {
       _background.size = size;
       _laser.position.x = size.x / 2;
@@ -186,7 +217,9 @@ class BubbleGame extends FlameGame with DragCallbacks {
   @override
   void onDragUpdate(DragUpdateEvent event) {
     super.onDragUpdate(event);
+
     if (_won) return;
+
     _laser.updateTarget(event.localStartPosition);
   }
 }

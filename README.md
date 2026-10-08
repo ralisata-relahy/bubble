@@ -1,17 +1,23 @@
-# bubble
+# Bubble
 
-A new Flutter project.
+A Flutter and Flame game with customizable glass bubbles and laser interaction.
 
-## Getting Started
+## Project organization
 
-This project is a starting point for a Flutter application.
+- `lib/core/` contains shared integration contracts.
+- `lib/features/bubble/` contains bubble models, Flame components, renderers,
+  and a reusable Flutter widget.
+- `lib/features/game/` contains the Flame game and its laser component.
+- `assets/` contains the images used by the game.
 
-A few resources to get you started if this is your first Flutter project:
+See [PROJECT_STRUCTURE.txt](./PROJECT_STRUCTURE.txt) for the complete source
+tree and a summary of the reorganization. See the
+[bubble customization guide](./bubble_customization_guide.md) for configuration
+and usage examples.
 
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
+## Run
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+```sh
+flutter pub get
+flutter run
+```

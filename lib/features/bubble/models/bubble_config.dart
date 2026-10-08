@@ -3,7 +3,7 @@ import 'dart:ui' show Size;
 
 import 'package:flame/components.dart';
 
-import 'bubble_style.dart';
+import 'package:bubble/features/bubble/models/bubble_style.dart';
 
 enum BubbleDirection { leftToRight, rightToLeft, bottomToTop, topToBottom }
 

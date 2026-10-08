@@ -1,7 +1,8 @@
 import 'dart:ui';
-import 'package:bubble/components/bubble/render/square_renderer.dart';
 
-import '../bubble_style.dart';
+import 'package:bubble/features/bubble/models/bubble_style.dart';
+
+import 'cube_renderer.dart';
 import 'sphere_renderer.dart';
 
 abstract class BubbleRenderer {

@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-import 'game/bubble_game.dart';
+import 'features/game/presentation/bubble_game.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();

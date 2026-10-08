@@ -4,7 +4,7 @@ import 'package:flame/components.dart';
 import 'package:flame/events.dart';
 import 'package:flutter/material.dart';
 
-import '../../game/bubble_game.dart';
+import '../../features/game/presentation/bubble_game.dart';
 
 class _Piece {
   double x = 0, y = 0, vx = 0, vy = 0;
@@ -34,8 +34,8 @@ class WinOverlay extends PositionComponent
 
   final Paint _bg = Paint()..color = const Color(0xB3000000);
   final Paint _paint = Paint();
-  late final TextPainter _title;
-  late final TextPainter _sub;
+  // late final TextPainter _title;
+  // late final TextPainter _sub;
 
   @override
   Future<void> onLoad() async {

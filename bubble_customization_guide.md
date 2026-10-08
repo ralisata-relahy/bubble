@@ -6,23 +6,26 @@ Welcome to the **Bubble Engine** architecture and customization guide. This docu
 
 ## Architecture Overview
 
-The project is structured following **Clean Architecture** and **Clean Code** principles:
+The project groups code by feature and keeps configuration, game components, and rendering helpers separate:
 
 ```
 lib/
-├── components/
+├── core/
+│   └── contracts/
+│       └── laser_target.dart
+├── features/
 │   ├── bubble/
-│   │   ├── render/         # Pure rendering logic (Sphere, Cube, Text helper)
-│   │   ├── ui/             # Standalone Flutter widgets (BubbleWidget)
-│   │   ├── bubble.dart     # Flame component implementing LaserTarget
-│   │   ├── bubble_config.dart
-│   │   ├── bubble_label.dart
-│   │   └── bubble_style.dart
-│   └── lazer/              # Interactive Laser Beam component
-├── domain/
-│   └── laser_target.dart   # Domain interface for raycast targets
-└── game/
-    └── bubble_game.dart    # Main FlameGame loop and event handling
+│   │   ├── models/         # Bubble configuration and visual style
+│   │   └── presentation/
+│   │       ├── components/ # Flame bubble and text label
+│   │       ├── rendering/  # Sphere, cube, and text rendering
+│   │       └── widgets/    # Reusable Flutter BubbleWidget
+│   └── game/
+│       └── presentation/
+│           ├── bubble_game.dart
+│           └── components/
+│               └── laser_beam.dart
+└── main.dart
 ```
 
 ---
@@ -52,7 +55,7 @@ lib/
 
 ## Customization Tutorial
 
-Bubbles are fully customizable through [BubbleStyle](file:///C:/Users/NEKENA/bubble/lib/components/bubble/bubble_style.dart) and [BubbleConfig](file:///C:/Users/NEKENA/bubble/lib/components/bubble/bubble_config.dart).
+Bubbles are fully customizable through [BubbleStyle](./lib/features/bubble/models/bubble_style.dart) and [BubbleConfig](./lib/features/bubble/models/bubble_config.dart).
 
 ### 1. Basic Customization (Config & Style)
 
@@ -102,8 +105,8 @@ You can fine-tune every visual aspect of the glass material:
 To display a bubble statically or in standard Flutter UI widgets:
 
 ```dart
-import 'package:bubble/components/bubble/ui/bubble_widget.dart';
-import 'package:bubble/components/bubble/bubble_style.dart';
+import 'package:bubble/features/bubble/presentation/widgets/bubble_widget.dart';
+import 'package:bubble/features/bubble/models/bubble_style.dart';
 
 class MyPosterScreen extends StatelessWidget {
   @override
@@ -126,7 +129,7 @@ class MyPosterScreen extends StatelessWidget {
 
 ### 5. Spawning Custom Bubbles in the Game
 
-In [bubble_game.dart](file:///C:/Users/NEKENA/bubble/lib/game/bubble_game.dart), add custom spawns inside `onLoad()`:
+In [bubble_game.dart](./lib/features/game/presentation/bubble_game.dart), add custom spawns inside `onLoad()`:
 
 ```dart
 await add(
