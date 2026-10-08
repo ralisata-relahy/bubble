@@ -3,7 +3,8 @@ import 'dart:math' as math;
 import 'dart:ui';
 
 import 'package:flame/components.dart';
-import 'package:flutter/material.dart' show Canvas, FontWeight, Colors, RadialGradient;
+import 'package:flutter/material.dart'
+    show Canvas, FontWeight, Colors, RadialGradient;
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../domain/laser_target.dart';
@@ -13,77 +14,140 @@ import 'bubble_label.dart';
 import 'bubble_style.dart';
 import 'render/bubble_renderer.dart';
 
-class Bubble extends PositionComponent with HasGameReference<BubbleGame> implements LaserTarget {
+class Bubble extends PositionComponent
+    with HasGameReference<BubbleGame>
+    implements LaserTarget {
   Bubble({
     required Vector2 position,
     this.config = const BubbleConfig(),
     this.textColor = Colors.white,
-    this.canPop=_defaultCanPop,
+    this.canPop = _defaultCanPop,
     Random? random,
-  })  : _random = random ?? Random(),
-        super(
-          position: position,
-          size: Vector2(config.style.size.width, config.style.size.height),
-          anchor: Anchor.center,
-        );
+  }) : _random = random ?? Random(),
+       super(
+         position: position,
+         size: Vector2(config.style.size.width, config.style.size.height),
+         anchor: Anchor.center,
+       );
 
   final Color textColor;
   final BubbleConfig config;
-  /// Règle: reçoit le texte de la bulle, renvoie true si elle est éclatable.
+
+  /// Règle: reçoit le texte de la bulle, renvoie true si elle est "vraie"
+  /// (elle explose et disparaît). Sinon elle explose puis revient en rouge.
   final bool Function(String text) canPop;
 
-  /// "Vrai" éclate, "Faux" réagit. Pour inverser, remplace par == 'faux'.
   static bool _defaultCanPop(String t) {
     final s = t.trim().toLowerCase();
     return s == 'vrai' || s == 'vraie';
   }
 
   final Random _random;
-  bool get isTarget => canPop(text);
+  bool get isTarget => canPop(_text);
+
+  // ── Texte (conservé même quand le label est retiré pendant l'explosion) ──
+  String _text = '';
   BubbleLabel? _label;
+
   late final BubbleRenderer _renderer;
   late final Vector2 _dir;
   late final Vector2 _perp;
   late final Vector2 _centerBase;
   late double _t;
-  double _squash = 0; // current deformation (replaces `scale`)
-  double _reactCooldown = 0;
-  double _redness = 0;   // 0 = couleur normale, 1 = tout roug
-  bool _isRed=false;
-  double _speedMul = 1.0;
-  final Vector2 _flee = Vector2.zero();
+  double _squash = 0;
 
-  /// Half-dimensions, used for screen exits and respawning.
+  // ── Rouge ──
+  double _redness = 0; // 0 = normal, 1 = tout rouge
+  bool _isRed = false;
+  static const Color _redColor = Color(0xFFFF1E1E);
+
   double get _halfW => size.x / 2;
   double get _halfH => size.y / 2;
 
-  Offset _hitNormal = Offset.zero; // Impact point in normalized coordinates [-1, 1]
-  double _heatIntensity = 0;       // Intensity 0..1
-  double _hitTimeToLive = 0;       // Time remaining before cooling down
-  double _inflationScale = 1.0;    // Magnification scale when heated by laser
+  // ── Laser (chauffe) ──
+  Offset _hitNormal = Offset.zero;
+  double _heatIntensity = 0;
+  double _hitTimeToLive = 0;
+  double _inflationScale = 1.0;
 
+  // ── Explosion ──
   bool _isPopping = false;
   double _popProgress = 0.0;
-  static const double _popDuration = 0.65;  // total (trou + retombée des gouttes)
-  static const double _holeDuration = 0.14; // temps pour que le trou traverse la bulle
+  static const double _popDuration = 0.65;
+  static const double _holeDuration = 0.14;
   static const double _holeFrac = _holeDuration / _popDuration;
 
+  /// Une bulle "fausse" revient 2 s après l'impact.
+  static const double _returnDelay = 2.0;
+  bool _returnsAfterPop = false;
+
+  // ── Invisible en attendant de revenir ──
   bool _isHidden = false;
   double _hiddenTimer = 0;
   double _opacity = 1.0;
-  static const double _hideDuration = 2.0;
 
   double _popStartScale = 1.0;
-  Offset _popOrigin = Offset.zero; // point de rupture (coordonnées locales)
+  Offset _popOrigin = Offset.zero;
   double _popMaxHole = 1.0;
   final List<_PopParticle> _particles = [];
 
   double get _holeRadius =>
       _popMaxHole * (_popProgress / _holeFrac).clamp(0.0, 1.0);
 
-  /// Triggers the pop animation before removing the bubble from the game.
+  // ── Objets de dessin réutilisés (zéro allocation par frame) ──
+  late final Rect _layerBounds = Rect.fromLTWH(
+    -size.x * 0.5,
+    -size.y * 0.5,
+    size.x * 2,
+    size.y * 2,
+  );
+  late final Path _ovalPath = Path()
+    ..addOval(Rect.fromLTWH(0, 0, size.x, size.y));
+  final Paint _plainPaint = Paint();
+  final Paint _layerPaint = Paint();
+  final Paint _fadePaint = Paint();
+  final Paint _clearPaint = Paint()..blendMode = BlendMode.clear;
+  final Paint _dropPaint = Paint();
+  final Paint _rimPaint = Paint()
+    ..style = PaintingStyle.stroke
+    ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 1.5);
+  final Paint _haloPaint = Paint()
+    ..style = PaintingStyle.stroke
+    ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3);
+  static const MaskFilter _bigDropBlur = MaskFilter.blur(BlurStyle.normal, 1.5);
+
+  // ───────────────────────── Texte ─────────────────────────
+
+  /// Texte vide = pas de label.
+  set text(String value) {
+    _text = value;
+    if (_isPopping || _isHidden) return; // sera reconstruit au retour
+    _syncLabel();
+  }
+
+  String get text => _text;
+
+  void _syncLabel() {
+    final label = _label;
+    if (_text.isEmpty) {
+      label?.removeFromParent();
+      _label = null;
+    } else if (label == null) {
+      _label = _buildLabel(_text);
+      add(_label!);
+    } else {
+      label.text = _text;
+    }
+  }
+
+  // ───────────────────────── Explosion ─────────────────────────
+
   void pop() {
-    if (_isPopping) return;
+    if (_isPopping || _isHidden) return;
+
+    // Décidé AVANT de toucher au label
+    _returnsAfterPop = !isTarget;
+
     _isPopping = true;
     _popProgress = 0;
     _popStartScale = _inflationScale;
@@ -94,7 +158,6 @@ class Bubble extends PositionComponent with HasGameReference<BubbleGame> impleme
     final ry = size.y / 2;
     final center = Offset(rx, ry);
 
-    // Point de rupture = point d'impact, ramené sur l'ellipse si besoin
     var nx = _hitNormal.dx, ny = _hitNormal.dy;
     final len = math.sqrt(nx * nx + ny * ny);
     if (len > 0.98) {
@@ -104,51 +167,74 @@ class Bubble extends PositionComponent with HasGameReference<BubbleGame> impleme
     _popOrigin = Offset(center.dx + nx * rx, center.dy + ny * ry);
     _popMaxHole = (rx > ry ? rx : ry) * 2.1;
 
-    // Gouttelettes: surtout du fin brouillard + quelques grosses gouttes
-    final count = 55 + _random.nextInt(20);
+    final dropColor = _isRed ? const Color(0xFFFF3B3B) : config.style.baseColor;
+
+    // Moins de particules = beaucoup moins de travail par frame
+    _particles.clear();
+    final count = 34 + _random.nextInt(10);
     for (var i = 0; i < count; i++) {
       final a = _random.nextDouble() * 2 * pi;
       final start = center + Offset(cos(a) * rx, sin(a) * ry);
       final dist = (start - _popOrigin).distance;
-      final big = _random.nextDouble() < 0.12;
+      final big = _random.nextDouble() < 0.14;
 
-      // Direction: vers l'extérieur + un peu de bruit tangentiel
-      final out = Offset(cos(a) / 1.0, sin(a) / 1.0);
+      final out = Offset(cos(a), sin(a));
       final jitter = (_random.nextDouble() - 0.5) * 0.9;
       final dir = Offset(
         out.dx * cos(jitter) - out.dy * sin(jitter),
         out.dx * sin(jitter) + out.dy * cos(jitter),
       );
 
-      _particles.add(_PopParticle(
-        start: start,
-        dir: dir,
-        speed: big ? 0.25 + _random.nextDouble() * 0.35 : 0.5 + _random.nextDouble() * 1.1,
-        radius: big ? 0.022 + _random.nextDouble() * 0.018 : 0.006 + _random.nextDouble() * 0.010,
-        delay: (dist / _popMaxHole).clamp(0.0, 1.0) * _holeDuration,
-        life: big ? 0.45 + _random.nextDouble() * 0.15 : 0.22 + _random.nextDouble() * 0.25,
-        drag: big ? 2.5 : 4.0 + _random.nextDouble() * 2.0,
-        color: _random.nextDouble() < 0.55 ? Colors.white : config.style.baseColor,
-        big: big,
-      ));
+      _particles.add(
+        _PopParticle(
+          start: start,
+          dir: dir,
+          speed: big
+              ? 0.25 + _random.nextDouble() * 0.35
+              : 0.5 + _random.nextDouble() * 1.1,
+          radius: big
+              ? 0.022 + _random.nextDouble() * 0.018
+              : 0.008 + _random.nextDouble() * 0.010,
+          delay: (dist / _popMaxHole).clamp(0.0, 1.0) * _holeDuration,
+          life: big
+              ? 0.45 + _random.nextDouble() * 0.15
+              : 0.22 + _random.nextDouble() * 0.25,
+          drag: big ? 2.5 : 4.0 + _random.nextDouble() * 2.0,
+          color: _random.nextDouble() < 0.55 ? Colors.white : dropColor,
+          big: big,
+        ),
+      );
     }
   }
 
-  /// Empty text removes the label.
-  set text(String value) {
-    final label = _label;
-    if (value.isEmpty) {
-      label?.removeFromParent();
-      _label = null;
-    } else if (label == null) {
-      _label = _buildLabel(value);
-      add(_label!);
-    } else {
-      label.text = value;
+  /// Fin de l'animation: vraie = supprimée, fausse = invisible en attendant de revenir.
+  void _finishPop() {
+    if (!_returnsAfterPop) {
+      removeFromParent();
+      return;
     }
+    _isPopping = false;
+    _popProgress = 0;
+    _particles.clear();
+    _isHidden = true;
+    _opacity = 0;
+    _heatIntensity = 0;
+    _hitTimeToLive = 0;
+    _inflationScale = 1.0;
+    // 2 s au total depuis l'impact
+    _hiddenTimer = math.max(0.0, _returnDelay - _popDuration);
   }
 
-  String get text => _label?.text ?? '';
+  /// Retour de la bulle fausse: rouge, avec fondu d'apparition.
+  void _comeBack() {
+    _isHidden = false;
+    _isRed = true;
+    _redness = 1.0;
+    _opacity = 0;
+    _syncLabel();
+  }
+
+  // ───────────────────────── Laser ─────────────────────────
 
   @override
   double? rayCast(Vector2 origin, Vector2 direction) {
@@ -158,7 +244,6 @@ class Bubble extends PositionComponent with HasGameReference<BubbleGame> impleme
     final rx = size.x / 2;
     final ry = size.y / 2;
 
-    // Transform ray into unit circle space
     final ox = (origin.x - center.x) / rx;
     final oy = (origin.y - center.y) / ry;
     final dx = direction.x / rx;
@@ -171,16 +256,16 @@ class Bubble extends PositionComponent with HasGameReference<BubbleGame> impleme
     if (discriminant < 0) return null;
 
     final s = math.sqrt(discriminant);
-    final t1 = (-b - s) / (2 * a); // Entry point
-    final t2 = (-b + s) / (2 * a); // Exit point
+    final t1 = (-b - s) / (2 * a);
+    final t2 = (-b + s) / (2 * a);
     if (t1 >= 0) return t1;
-    if (t2 >= 0) return t2; // Origin is inside the bubble
+    if (t2 >= 0) return t2;
     return null;
   }
 
   @override
   void onLaserHit(Vector2 point, double dt) {
-    if (_isPopping) return;
+    if (_isPopping || _isHidden) return;
 
     final center = absoluteCenter;
     _hitNormal = Offset(
@@ -188,24 +273,13 @@ class Bubble extends PositionComponent with HasGameReference<BubbleGame> impleme
       (point.y - center.y) / (size.y / 2),
     );
 
-    if (isTarget) {
-      pop();
-    } else if (_reactCooldown <= 0) {
-      _isRed=true;
-      _reactToWrongHit(center-point);
-      _isHidden=true;
-      _hiddenTimer=_hideDuration;
-
-    }
+    // Vrai ou faux: dans les deux cas ça explose.
+    // La différence se fait à la fin de l'animation (_finishPop).
+    pop();
   }
 
-  void _reactToWrongHit(Vector2 awayFromLaser) {
-    _reactCooldown = 1.0;
-    _speedMul = 2.5;
-    if (awayFromLaser.length2 > 0) {
-      _flee.setFrom(awayFromLaser.normalized() * 260);
-    }
-  }
+  // ───────────────────────── Cycle de vie ─────────────────────────
+
   @override
   Future<void> onLoad() async {
     _renderer = BubbleRenderer(config.style);
@@ -214,12 +288,12 @@ class Bubble extends PositionComponent with HasGameReference<BubbleGame> impleme
     _centerBase = position.clone();
     _t = _random.nextDouble() * 2 * pi;
 
-    if (config.text.isNotEmpty) {
-      _label = _buildLabel(config.text);
+    _text = config.text;
+    if (_text.isNotEmpty) {
+      _label = _buildLabel(_text);
       await add(_label!);
     }
 
-    // Highlights above text (higher priority)
     await add(_BubbleGloss());
   }
 
@@ -253,18 +327,26 @@ class Bubble extends PositionComponent with HasGameReference<BubbleGame> impleme
   void update(double dt) {
     super.update(dt);
 
+    _t += dt;
+    _drift(dt);
+
+    // 1) Explosion en cours
     if (_isPopping) {
       _popProgress += dt / _popDuration;
-      _t += dt;
-      _drift(dt);
-      _inflationScale = _popStartScale; // le film ne gonfle pas, il se déchire
-      if (_popProgress >= 1.0) removeFromParent();
+      if (_popProgress >= 1.0) _finishPop();
       return;
     }
 
-    _t += dt;
+    // 2) Invisible, en attente de revenir (bulle fausse)
+    if (_isHidden) {
+      _hiddenTimer -= dt;
+      if (_hiddenTimer <= 0) _comeBack();
+      if (_isOffScreen()) _respawn();
+      return;
+    }
+
+    // 3) Normal
     _renderer.update(dt);
-    _drift(dt);
     _breathe();
 
     if (_hitTimeToLive > 0) {
@@ -274,34 +356,17 @@ class Bubble extends PositionComponent with HasGameReference<BubbleGame> impleme
       _inflationScale = math.max(1.0, 1.0 + _heatIntensity * 0.45);
     }
 
-    _reactCooldown = math.max(0, _reactCooldown - dt);
-    _speedMul += (1.0 - _speedMul) * math.min(1.0, dt * 2.0);
-    _flee.scale(math.max(0.0, 1 - dt * 3.0));
-    if (_isRed){
-      _redness=math.min(1.0, _redness+dt*6.0);
-    }else{
-      _redness=math.max(0.0,_redness-dt*1.5);
-    }
-    if (_isHidden) {
-      _hiddenTimer -= dt;
-      _popProgress += dt / _popDuration;
-      _t += dt;
-      _drift(dt);
-      _inflationScale = _popStartScale; // le film ne gonfle pas, il se déchire
-      if (_hiddenTimer <= 0) {
-        _isHidden = false;
-      }
-    } else {
-      _opacity = math.min(1.0, _opacity + dt * 2.0); // réapparition en ~0,5 s
-    }
+    _redness = _isRed
+        ? math.min(1.0, _redness + dt * 6.0)
+        : math.max(0.0, _redness - dt * 1.5);
+
+    _opacity = math.min(1.0, _opacity + dt * 2.0); // réapparition en ~0,5 s
+
     if (_isOffScreen()) _respawn();
   }
 
-
   void _drift(double dt) {
-    _centerBase
-      ..add(_dir * (config.speed * _speedMul * dt))
-      ..add(_flee * dt);
+    _centerBase.add(_dir * (config.speed * dt));
     final wave =
         _perp * (sin(_t * config.waveFrequency) * config.waveAmplitude);
     position.setFrom(_centerBase + wave);
@@ -343,15 +408,10 @@ class Bubble extends PositionComponent with HasGameReference<BubbleGame> impleme
     position.setFrom(_centerBase);
   }
 
-  /// Applies deformation and laser magnification around the center, only on what is drawn.
-  void paintDeformed(Canvas canvas, void Function(Canvas) draw) {
-    final fading = _opacity < 0.999;
-    if (fading) {
-      canvas.saveLayer(
-        Rect.fromLTWH(-size.x, -size.y, size.x * 3, size.y * 3),
-        Paint()..color = Colors.white.withValues(alpha: _opacity),
-      );
-    }
+  // ───────────────────────── Rendu ─────────────────────────
+
+  /// Déformation (respiration + gonflement) autour du centre. Sans layer.
+  void _applyDeform(Canvas canvas, void Function(Canvas) draw) {
     canvas
       ..save()
       ..translate(_halfW, _halfH)
@@ -359,21 +419,55 @@ class Bubble extends PositionComponent with HasGameReference<BubbleGame> impleme
       ..translate(-_halfW, -_halfH);
     draw(canvas);
     canvas.restore();
+  }
+
+  /// Utilisé par le label et le gloss: déformation + fondu (layer seulement si nécessaire).
+  void paintDeformed(Canvas canvas, void Function(Canvas) draw) {
+    final fading = _opacity < 0.999;
+    if (fading) {
+      _fadePaint.color = Colors.white.withValues(alpha: _opacity);
+      canvas.saveLayer(_layerBounds, _fadePaint);
+    }
+    _applyDeform(canvas, draw);
     if (fading) canvas.restore();
   }
-  /// Dessine [draw] puis efface le trou de rupture (utilisé par le corps et le gloss).
+
+  /// Dessine [draw] puis efface le trou de rupture (utilisé par le gloss).
   void paintPopped(Canvas canvas, void Function(Canvas) draw) {
-    canvas.saveLayer(
-      Rect.fromLTWH(-size.x, -size.y, size.x * 3, size.y * 3),
-      Paint(),
-    );
-    paintDeformed(canvas, draw);
-    canvas.drawCircle(
-      _popOrigin,
-      _holeRadius,
-      Paint()..blendMode = BlendMode.clear,
-    );
+    canvas.saveLayer(_layerBounds, _plainPaint);
+    _applyDeform(canvas, draw);
+    canvas.drawCircle(_popOrigin, _holeRadius, _clearPaint);
     canvas.restore();
+  }
+
+  /// Corps de la bulle: UN SEUL layer pour teinte rouge + fondu + trou.
+  void _paintBody(Canvas canvas, {bool hole = false}) {
+    final tinted = _redness > 0.01;
+    final fading = _opacity < 0.999;
+    final layered = tinted || fading || hole;
+
+    if (layered) {
+      if (tinted || fading) {
+        // Teinte rouge (uniquement sur les pixels de la bulle) + opacité,
+        // appliquées en une seule passe par une matrice de couleur.
+        final k = 0.85 * _redness;
+        final i = 1 - k;
+        _layerPaint.colorFilter = ColorFilter.matrix(<double>[
+          i, 0, 0, 0, 255 * k, //
+          0, i, 0, 0, 30 * k,
+          0, 0, i, 0, 30 * k,
+          0, 0, 0, _opacity, 0,
+        ]);
+      } else {
+        _layerPaint.colorFilter = null;
+      }
+      canvas.saveLayer(_layerBounds, _layerPaint);
+    }
+
+    _applyDeform(canvas, _renderer.paintBody);
+    if (hole) canvas.drawCircle(_popOrigin, _holeRadius, _clearPaint);
+
+    if (layered) canvas.restore();
   }
 
   void _renderPop(Canvas canvas) {
@@ -381,36 +475,33 @@ class Bubble extends PositionComponent with HasGameReference<BubbleGame> impleme
     final shortSide = math.min(size.x, size.y);
     final tHole = (p / _holeFrac).clamp(0.0, 1.0);
 
-    // 1. Film restant, avec le trou qui s'agrandit
-    paintPopped(canvas, _renderer.paintBody);
+    // 1. Film + liseré: seulement tant que le trou n'a pas tout mangé
+    if (tHole < 1.0) {
+      _paintBody(canvas, hole: true);
 
-    // 2. Liseré brillant sur le bord du trou (film qui se rétracte)
-    if (tHole < 1.0 && _holeRadius > 0) {
-      canvas.save();
-      canvas.clipPath(Path()..addOval(Rect.fromLTWH(0, 0, size.x, size.y)));
-      final a = 1 - tHole * tHole;
-      canvas.drawCircle(
-        _popOrigin,
-        _holeRadius,
-        Paint()
-          ..style = PaintingStyle.stroke
+      if (_holeRadius > 0) {
+        final a = 1 - tHole * tHole;
+        canvas.save();
+        canvas.clipPath(_ovalPath);
+        _rimPaint
           ..strokeWidth = shortSide * 0.03 * (1 - 0.5 * tHole)
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 1.5)
-          ..color = Colors.white.withValues(alpha: 0.6 * a),
-      );
-      canvas.drawCircle(
-        _popOrigin,
-        _holeRadius + shortSide * 0.02,
-        Paint()
-          ..style = PaintingStyle.stroke
+          ..color = Colors.white.withValues(alpha: 0.6 * a);
+        canvas.drawCircle(_popOrigin, _holeRadius, _rimPaint);
+        _haloPaint
           ..strokeWidth = shortSide * 0.02
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3)
-          ..color = config.style.baseColor.withValues(alpha: 0.35 * a),
-      );
-      canvas.restore();
+          ..color = (_isRed ? _redColor : config.style.baseColor).withValues(
+            alpha: 0.35 * a,
+          );
+        canvas.drawCircle(
+          _popOrigin,
+          _holeRadius + shortSide * 0.02,
+          _haloPaint,
+        );
+        canvas.restore();
+      }
     }
 
-    // 3. Gouttelettes fines: traînée (drag) + gravité, fondu progressif
+    // 2. Gouttelettes (un seul Paint réutilisé, flou seulement sur les grosses)
     final tNow = p * _popDuration;
     final g = 1.4 * shortSide;
     for (final d in _particles) {
@@ -418,58 +509,43 @@ class Bubble extends PositionComponent with HasGameReference<BubbleGame> impleme
       if (tau < 0 || tau > d.life) continue;
 
       final k = tau / d.life;
-      final fade = math.pow(1 - k, 1.5).toDouble();
+      final fade = (1 - k) * math.sqrt(1 - k); // = (1-k)^1.5 sans pow()
       final disp = d.speed * shortSide * (1 - math.exp(-d.drag * tau)) / d.drag;
       final pos = d.start + d.dir * disp + Offset(0, 0.5 * g * tau * tau);
       final r = shortSide * d.radius * (1 - 0.5 * k);
       if (r <= 0) continue;
 
-      // Goutte semi-transparente (pas de blend additif: plus "matière")
-      canvas.drawCircle(
-        pos,
-        r,
-        Paint()
-          ..maskFilter = MaskFilter.blur(BlurStyle.normal, r * 0.35)
-          ..color = d.color.withValues(alpha: (d.big ? 0.55 : 0.45) * fade),
-      );
-      // Petit reflet sur les grosses gouttes
+      _dropPaint
+        ..maskFilter = d.big ? _bigDropBlur : null
+        ..color = d.color.withValues(alpha: (d.big ? 0.55 : 0.45) * fade);
+      canvas.drawCircle(pos, r, _dropPaint);
+
       if (d.big) {
+        _dropPaint
+          ..maskFilter = null
+          ..color = Colors.white.withValues(alpha: 0.8 * fade);
         canvas.drawCircle(
           pos + Offset(-r * 0.3, -r * 0.3),
           r * 0.3,
-          Paint()..color = Colors.white.withValues(alpha: 0.8 * fade),
+          _dropPaint,
         );
       }
     }
   }
 
-  /// Bottom layer (text is drawn afterwards as a child).
   @override
   void render(Canvas canvas) {
+    if (_isHidden) return;
     if (_isPopping) {
       _renderPop(canvas);
       return;
     }
-    final bounds = Rect.fromLTWH(-size.x, -size.y, size.x * 3, size.y * 3);
-    paintDeformed(canvas, (c) {
-      if (_redness > 0.01) {
-        // Teinte uniquement sur les pixels de la bulle (sphère, cube, ellipsoïde...)
-        c.saveLayer(bounds, Paint());
-        _renderer.paintBody(c);
-        c.drawRect(
-          bounds,
-          Paint()
-            ..blendMode = BlendMode.srcATop
-            ..color = const Color(0xFFFF1E1E).withValues(alpha: 0.85 * _redness),
-        );
-        c.restore();
-      } else {
-        _renderer.paintBody(c);
-      }
-    });
+
+    _paintBody(canvas);
+
     if (_heatIntensity > 0.01) {
       canvas.save();
-      canvas.clipPath(Path()..addOval(Rect.fromLTWH(0, 0, size.x, size.y)));
+      canvas.clipPath(_ovalPath);
 
       final impactPoint = Offset(
         (_hitNormal.dx + 1) * size.x / 2,
@@ -477,14 +553,14 @@ class Bubble extends PositionComponent with HasGameReference<BubbleGame> impleme
       );
       final radius = math.min(size.x, size.y) * (0.3 + 0.2 * _heatIntensity);
 
-      // Intense glowing laser hit mark
       canvas.drawCircle(
         impactPoint,
         radius * 1.2,
         Paint()
           ..blendMode = BlendMode.plus
           ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8)
-          ..color = const Color(0xFFFF2A2A).withValues(alpha: 0.7 * _heatIntensity),
+          ..color = const Color(0xFFFF2A2A)
+              .withValues(alpha: 0.7 * _heatIntensity),
       );
 
       canvas.drawCircle(
@@ -512,8 +588,8 @@ class _BubbleGloss extends PositionComponent with ParentIsA<Bubble> {
 
   @override
   void render(Canvas canvas) {
+    if (parent._isHidden) return;
     if (parent._isPopping) {
-      // Le gloss disparaît avec le trou, pas d'un coup
       if (parent._holeRadius < parent._popMaxHole) {
         parent.paintPopped(canvas, parent._renderer.paintGloss);
       }
