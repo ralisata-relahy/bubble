@@ -357,42 +357,19 @@ class Bubble extends PositionComponent
 
   // ───────────────────────── Laser ─────────────────────────
 
+  /// Indique si la bulle est visible et prête à réagir à un impact du laser.
+  @override
+  bool get canReceiveLaserHit =>
+      !isBurstBubble && !_isPopping && !_isHidden && _opacity >= 0.8;
+
   /// Indique si la pointe du laser se trouve à l'intérieur de la bulle.
+  @override
   bool containsLaserPoint(Vector2 point) {
     if (isBurstBubble) return false;
     final center = absoluteCenter;
     final dx = (point.x - center.x) / _halfW;
     final dy = (point.y - center.y) / _halfH;
     return dx * dx + dy * dy <= 1;
-  }
-
-  /// Renvoie la distance de la première intersection du rayon avec la bulle.
-  @override
-  double? rayCast(Vector2 origin, Vector2 direction) {
-    if (isBurstBubble) return null;
-    if (_isPopping || _isHidden || _opacity < 0.8) return null;
-
-    final center = absoluteCenter;
-    final rx = size.x / 2;
-    final ry = size.y / 2;
-
-    final ox = (origin.x - center.x) / rx;
-    final oy = (origin.y - center.y) / ry;
-    final dx = direction.x / rx;
-    final dy = direction.y / ry;
-
-    final a = dx * dx + dy * dy;
-    final b = 2 * (ox * dx + oy * dy);
-    final k = ox * ox + oy * oy - 1;
-    final discriminant = b * b - 4 * a * k;
-    if (discriminant < 0) return null;
-
-    final s = math.sqrt(discriminant);
-    final t1 = (-b - s) / (2 * a);
-    final t2 = (-b + s) / (2 * a);
-    if (t1 >= 0) return t1;
-    if (t2 >= 0) return t2;
-    return null;
   }
 
   /// Enregistre l'impact du laser et déclenche l'explosion.

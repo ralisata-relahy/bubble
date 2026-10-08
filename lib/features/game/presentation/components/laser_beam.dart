@@ -7,7 +7,6 @@ import 'package:flame/game.dart';
 import 'package:flutter/material.dart';
 
 import 'package:bubble/core/contracts/laser_target.dart';
-import 'package:bubble/features/bubble/presentation/components/bubble.dart';
 
 /// A vibrant laser beam whose target can be moved by the user.
 class LaserBeam extends PositionComponent with HasGameReference<FlameGame> {
@@ -32,7 +31,7 @@ class LaserBeam extends PositionComponent with HasGameReference<FlameGame> {
   Vector2 _endPoint = Vector2.zero();
 
   PositionComponent? _hitTarget;
-  PositionComponent? _previousTarget;
+  LaserTarget? _previousTarget;
 
   // ── Paints réutilisés ──────────────────────────────────────────────
 
@@ -94,51 +93,50 @@ class LaserBeam extends PositionComponent with HasGameReference<FlameGame> {
     if (distanceToTarget < 1e-5) {
       _endPoint = position.clone();
       _hitTarget = null;
+      _previousTarget = null;
       return;
     }
 
     final dir = toTarget.normalized();
 
     var closestDistance = math.min(distanceToTarget, maxLength);
-    PositionComponent? currentTarget;
 
-    final targets = <PositionComponent>[
-      ...obstacles,
-      ...game.children.whereType<Bubble>(),
-    ];
-
-    for (final target in targets) {
-      if (target == this) continue;
-
-      double? intersectionDistance;
-
-      if (target is LaserTarget) {
-        intersectionDistance = (target as LaserTarget).rayCast(position, dir);
-      } else {
-        final rect = target.toAbsoluteRect();
-        intersectionDistance = _intersectRect(
-          position,
-          dir,
-          rect,
-        );
-      }
+    // Obstacles can clip the beam, but bubbles are only candidates at its tip.
+    for (final obstacle in obstacles) {
+      final intersectionDistance =
+          _intersectRect(position, dir, obstacle.toAbsoluteRect());
 
       if (intersectionDistance != null &&
           intersectionDistance > 0 &&
           intersectionDistance < closestDistance) {
         closestDistance = intersectionDistance;
-        currentTarget = target;
       }
     }
 
     _endPoint = position + dir * closestDistance;
-    _hitTarget = currentTarget;
 
-    if (_hitTarget is LaserTarget) {
-      (_hitTarget as LaserTarget).onLaserHit(_endPoint, dt);
+    LaserTarget? pointTarget;
+    PositionComponent? pointTargetComponent;
+    for (final component in game.children.whereType<PositionComponent>()) {
+      if (component is! LaserTarget) continue;
+      final target = component as LaserTarget;
+      if (!target.containsLaserPoint(_endPoint)) continue;
+
+      pointTarget = target;
+      pointTargetComponent = component;
+      break;
     }
 
-    _previousTarget = _hitTarget;
+    _hitTarget = pointTarget?.canReceiveLaserHit == true
+        ? pointTargetComponent
+        : null;
+
+    if (pointTarget != _previousTarget) {
+      if (pointTarget?.canReceiveLaserHit == true) {
+        pointTarget!.onLaserHit(_endPoint, dt);
+      }
+      _previousTarget = pointTarget;
+    }
   }
 
   /// Ray / axis-aligned rectangle intersection.

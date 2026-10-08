@@ -60,10 +60,10 @@ class BubbleGame extends FlameGame with DragCallbacks {
   }
 
   Future<void> _startRound() async {
+    final gameSize = size.x > 0 ? size : Vector2(800, 600);
     _laser = LaserBeam(
-      origin: Vector2(200, 700),
-      targetPosition: Vector2(200, 600),
-      obstacles: [_background],
+      origin: Vector2(gameSize.x / 2, 700),
+      targetPosition: Vector2(gameSize.x / 2, 600),
     );
     await add(_laser);
 
@@ -147,10 +147,16 @@ class BubbleGame extends FlameGame with DragCallbacks {
 
   Vector2 _randomPosition(double halfW, double halfH) {
     final gameSize = size.x > 0 ? size : Vector2(800, 600);
+    final availableWidth = max(0.0, gameSize.x - 2 * halfW);
+    final availableHeight = max(0.0, gameSize.y - 2 * halfH);
 
     return Vector2(
-      halfW + _random.nextDouble() * (gameSize.x - 2 * halfW),
-      halfH + _random.nextDouble() * (gameSize.y - 2 * halfH),
+      availableWidth == 0
+          ? gameSize.x / 2
+          : halfW + _random.nextDouble() * availableWidth,
+      availableHeight == 0
+          ? gameSize.y / 2
+          : halfH + _random.nextDouble() * availableHeight,
     );
   }
 
@@ -211,6 +217,7 @@ class BubbleGame extends FlameGame with DragCallbacks {
     if (isLoaded) {
       _background.size = size;
       _laser.position.x = size.x / 2;
+      _laser.updateTarget(Vector2(size.x / 2, 600));
     }
   }
 
@@ -220,6 +227,6 @@ class BubbleGame extends FlameGame with DragCallbacks {
 
     if (_won) return;
 
-    _laser.updateTarget(event.localStartPosition);
+    _laser.updateTarget(event.localEndPosition);
   }
 }
