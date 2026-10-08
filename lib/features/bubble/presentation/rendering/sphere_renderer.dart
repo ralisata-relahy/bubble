@@ -3,7 +3,8 @@ import 'dart:ui';
 
 import 'package:flutter/material.dart' show Alignment, RadialGradient, SweepGradient;
 
-import '../bubble_style.dart';
+import 'package:bubble/features/bubble/models/bubble_style.dart';
+
 import 'bubble_renderer.dart';
 
 /// Animated glass sphere / ellipsoid (2.5D).

@@ -1,21 +1,24 @@
+// ignore_for_file: unused_field
+
 import 'dart:math';
 import 'dart:math' as math;
 import 'dart:ui';
 
 import 'package:flame/components.dart';
+import 'package:flame/game.dart';
 import 'package:flutter/material.dart'
     show Canvas, FontWeight, Colors, RadialGradient;
 import 'package:google_fonts/google_fonts.dart';
 
-import '../../domain/laser_target.dart';
-import '../../game/bubble_game.dart';
-import 'bubble_config.dart';
+import 'package:bubble/features/bubble/models/bubble_config.dart';
+import 'package:bubble/features/bubble/models/bubble_style.dart';
+import 'package:bubble/features/bubble/presentation/rendering/bubble_renderer.dart';
+import 'package:bubble/core/contracts/laser_target.dart';
+
 import 'bubble_label.dart';
-import 'bubble_style.dart';
-import 'render/bubble_renderer.dart';
 
 class Bubble extends PositionComponent
-    with HasGameReference<BubbleGame>
+    with HasGameReference<FlameGame>
     implements LaserTarget {
   Bubble({
     required Vector2 position,

@@ -1,0 +1,94 @@
+Bubble project structure
+========================
+
+Purpose
+-------
+This file describes the source layout and the reorganization performed to
+improve readability and make future feature growth easier. The reorganization
+is structural and does not intend to change game rules, rendering, assets,
+interactions, or UI/UX.
+
+Source tree
+-----------
+lib/
+|-- main.dart
+|-- core/
+|   `-- contracts/
+|       `-- laser_target.dart
+`-- features/
+    |-- bubble/
+    |   |-- models/
+    |   |   |-- bubble_config.dart
+    |   |   `-- bubble_style.dart
+    |   `-- presentation/
+    |       |-- components/
+    |       |   |-- bubble.dart
+    |       |   `-- bubble_label.dart
+    |       |-- rendering/
+    |       |   |-- bubble_renderer.dart
+    |       |   |-- bubble_text_helper.dart
+    |       |   |-- cube_renderer.dart
+    |       |   |-- sphere_renderer.dart
+    |       |   `-- cube/
+    |       |       |-- cube_face.dart
+    |       |       |-- cube_motion.dart
+    |       |       |-- cube_palette.dart
+    |       |       |-- cube_projector.dart
+    |       |       |-- cube_texture.dart
+    |       |       |-- face_outline.dart
+    |       |       |-- glass_painter.dart
+    |       |       |-- ground_painter.dart
+    |       |       `-- surface_detail_painter.dart
+    |       `-- widgets/
+    |           `-- bubble_widget.dart
+    `-- game/
+        `-- presentation/
+            |-- bubble_game.dart
+            `-- components/
+                `-- laser_beam.dart
+
+Project resources and supporting files
+---------------------------------------
+assets/
+`-- images/
+    |-- Bg_fish.jpeg
+    |-- Bg_fish1.jpeg
+    `-- Bg_water.png
+
+test/
+`-- widget_test.dart
+
+README.md
+bubble_customization_guide.md
+pubspec.yaml
+analysis_options.yaml
+
+Reorganization summary
+----------------------
+- Grouped bubble configuration and styles under
+  lib/features/bubble/models.
+- Grouped the Flame bubble components, rendering pipeline, cube rendering
+  helpers, and Flutter widget under lib/features/bubble/presentation.
+- Grouped the Flame game and laser component under lib/features/game.
+- Moved the shared LaserTarget contract to lib/core/contracts so both features
+  can depend on it without a feature depending on another feature's contract.
+- Consolidated the duplicate LaserTarget source into one shared definition.
+- Renamed lazer/lazer.dart to laser_beam.dart and square_renderer.dart to
+  cube_renderer.dart to match their class responsibilities.
+- Updated source imports, README, and the bubble customization guide.
+- Kept main.dart, assets, platform directories, and dependency manifests in
+  their existing locations.
+- Replaced concrete BubbleGame type references in components with Flame's
+  generic FlameGame reference.
+- No win overlay is present in the source tree being reorganized.
+
+Validation
+----------
+- flutter analyze completed with no issues.
+- flutter test cannot load test/widget_test.dart because the file contains no
+  active main() test entry point; its example test is commented out.
+
+Behavioral scope
+----------------
+The intent of this work is structural. Bubble movement, laser targeting,
+rendering, sounds, game rules, and UI/UX are not intentionally changed.

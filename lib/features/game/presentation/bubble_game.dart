@@ -5,10 +5,10 @@ import 'package:flame/events.dart';
 import 'package:flame/game.dart';
 import 'package:flutter/material.dart' show Color, Colors, Size;
 
-import '../components/bubble/bubble.dart';
-import '../components/bubble/bubble_config.dart';
-import '../components/bubble/bubble_style.dart';
-import '../components/lazer/lazer.dart';
+import 'package:bubble/features/bubble/models/bubble_config.dart';
+import 'package:bubble/features/bubble/models/bubble_style.dart';
+import 'package:bubble/features/bubble/presentation/components/bubble.dart';
+import 'package:bubble/features/game/presentation/components/laser_beam.dart';
 
 class BubbleGame extends FlameGame with DragCallbacks {
   static const _backgroundAsset = 'Bg_water.png';

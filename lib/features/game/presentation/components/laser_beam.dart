@@ -1,14 +1,14 @@
 import 'dart:math' as math;
 import 'package:flame/components.dart';
+import 'package:flame/game.dart';
 import 'package:flutter/material.dart';
 
-import '../../domain/laser_target.dart';
-import '../../game/bubble_game.dart';
-import '../bubble/bubble.dart';
+import 'package:bubble/features/bubble/presentation/components/bubble.dart';
+import 'package:bubble/core/contracts/laser_target.dart';
 
 /// A vibrant, high-impact laser beam component (line and glowing point) whose target
 /// can be moved by the user, featuring rich visual effects and hit feedback.
-class LaserBeam extends PositionComponent with HasGameReference<BubbleGame> {
+class LaserBeam extends PositionComponent with HasGameReference<FlameGame> {
   LaserBeam({
     required Vector2 origin,
     Vector2? targetPosition,
