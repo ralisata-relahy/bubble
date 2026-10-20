@@ -4,14 +4,17 @@ import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:flame/components.dart';
-import 'package:flame/game.dart';
 import 'package:flutter/material.dart';
 
 import 'package:bubble/core/contracts/laser_target.dart';
 import 'package:bubble/features/ai_buddy/edutainer.dart';
 
+import '../bubble_game.dart';
+
 /// A vibrant laser beam whose target can be moved by the user.
-class LaserBeam extends PositionComponent with HasGameReference<FlameGame> {
+class LaserBeam extends PositionComponent with HasGameReference<BubbleGame> {
+  late final TextComponent? labelComponent;
+
   LaserBeam({
     required Vector2 origin,
     Vector2? targetPosition,
@@ -19,8 +22,62 @@ class LaserBeam extends PositionComponent with HasGameReference<FlameGame> {
     this.color = const Color.fromARGB(255, 42, 255, 209),
     this.thickness = 3.5,
     this.obstacles = const [],
+    String? label,
   }) : super(position: origin) {
     _targetPosition = targetPosition ?? (origin + Vector2(200, -100));
+
+    if (label != null && label.isNotEmpty) {
+      final text = label;
+
+      const textStyle = TextStyle(
+        color: Colors.white,
+        fontSize: 16,
+        fontWeight: FontWeight.bold,
+      );
+
+      const padding = 16.0;
+      const maxTextWidth = 300.0;
+
+      final textPainter = TextPainter(
+        text: TextSpan(text: text, style: textStyle),
+        textDirection: TextDirection.ltr,
+        textAlign: TextAlign.center,
+      )..layout(maxWidth: maxTextWidth);
+
+      final boxSize = Vector2(
+        textPainter.width + padding * 1.5,
+        textPainter.height + padding * 1.5,
+      );
+
+      final labelBox = RectangleComponent(
+        size: boxSize,
+        anchor: Anchor.bottomCenter,
+        position: Vector2(
+          0,
+          (_edutainerSize.height / 2),
+        ),
+        paint: Paint()..color = Colors.black.withValues(alpha: 0.75),
+      );
+
+      labelComponent = TextComponent(
+        text: text,
+        anchor: Anchor.center,
+        position: boxSize / 2,
+        textRenderer: TextPaint(style: textStyle),
+      );
+
+      labelBox.add(labelComponent!);
+      add(labelBox);
+
+    } else {
+      labelComponent = null;
+    }
+  }
+
+  void updateLabelText(String newText) {
+    if (labelComponent != null) {
+      labelComponent!.text = newText;
+    }
   }
 
   late Vector2 _targetPosition;
@@ -92,6 +149,10 @@ class LaserBeam extends PositionComponent with HasGameReference<FlameGame> {
   @override
   void update(double dt) {
     super.update(dt);
+
+    if (game.isFrozen) {
+      return;
+    }
 
     _animationTime += dt;
     _castRay(dt);

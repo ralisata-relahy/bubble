@@ -16,12 +16,15 @@ class _Piece {
 /// Écran de victoire: fond sombre + confettis + texte. Tap = rejouer.
 class WinOverlay extends PositionComponent
     with TapCallbacks, HasGameReference<BubbleGame> {
-  WinOverlay({required this.score}) : super(priority: 100);
+  WinOverlay({required this.score, required this.data}) : super(priority: 100);
 
   final int score;
   final Random _rng = Random();
   final List<_Piece> _pieces = [];
   static const int _count = 80;
+  final Map<String, dynamic> data;
+
+  double _tapDelay = 0.5; // Empêche le clic immédiat d'interférer
 
   static const List<Color> _colors = [
     Color(0xFFFF4D6D),
@@ -34,8 +37,8 @@ class WinOverlay extends PositionComponent
 
   final Paint _bg = Paint()..color = const Color(0xB3000000);
   final Paint _paint = Paint();
-  // late final TextPainter _title;
-  // late final TextPainter _sub;
+  late final TextPainter _title;
+  late final List<TextPainter> _knowledgePainters;
 
   @override
   Future<void> onLoad() async {
@@ -47,26 +50,36 @@ class WinOverlay extends PositionComponent
       _pieces.add(p);
     }
 
-    // _title = TextPainter(
-    //   text: const TextSpan(
-    //     text: 'Bravo !',
-    //     style: TextStyle(
-    //       color: Colors.white,
-    //       fontSize: 48,
-    //       fontWeight: FontWeight.bold,
-    //     ),
-    //   ),
-    //   textDirection: TextDirection.ltr,
-    // )..layout();
+    _title = TextPainter(
+      text: const TextSpan(
+        text: 'Bravo !',
+        style: TextStyle(
+          color: Colors.white,
+          fontSize: 48,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
 
-    // _sub = TextPainter(
-    //   text: TextSpan(
-    //     text: '$score bulles éclatées\nTouche l\'écran pour rejouer',
-    //     style: const TextStyle(color: Colors.white70, fontSize: 20),
-    //   ),
-    //   textAlign: TextAlign.center,
-    //   textDirection: TextDirection.ltr,
-    // )..layout(maxWidth: size.x * 0.9);
+    final rawKnowledge = data["knowledge"];
+    final List<String> knowledgeItems = rawKnowledge is List
+        ? rawKnowledge.map((e) => e.toString()).toList()
+        : [];
+
+    _knowledgePainters = knowledgeItems.map((item) {
+      return TextPainter(
+        text: TextSpan(
+          text: '• $item',
+          style: const TextStyle(
+            color: Colors.amberAccent,
+            fontSize: 18,
+          ),
+        ),
+        textAlign: TextAlign.center,
+        textDirection: TextDirection.ltr,
+      )..layout(maxWidth: size.x * 0.9);
+    }).toList();
   }
 
   void _reset(_Piece p, {bool initial = false}) {
@@ -84,6 +97,9 @@ class WinOverlay extends PositionComponent
 
   @override
   void update(double dt) {
+    if (_tapDelay > 0) {
+      _tapDelay -= dt;
+    }
     for (final p in _pieces) {
       p.x += p.vx * dt;
       p.y += p.vy * dt;
@@ -109,16 +125,25 @@ class WinOverlay extends PositionComponent
         ..restore();
     }
 
-    // _title.paint(
-    //   canvas,
-    //   Offset((size.x - _title.width) / 2, size.y * 0.35),
-    // );
-    // _sub.paint(
-    //   canvas,
-    //   Offset((size.x - _sub.width) / 2, size.y * 0.35 + _title.height + 16),
-    // );
+    _title.paint(
+      canvas,
+      Offset((size.x - _title.width) / 2, size.y * 0.25),
+    );
+
+    double currentY = size.y * 0.25 + _title.height + 24;
+    for (final kp in _knowledgePainters) {
+      kp.paint(
+        canvas,
+        Offset((size.x - kp.width) / 2, currentY),
+      );
+      currentY += kp.height + 10;
+    }
   }
 
   @override
-  void onTapDown(TapDownEvent event) => game.restart();
+  void onTapDown(TapDownEvent event) {
+    if (_tapDelay <= 0) {
+      game.restart();
+    }
+  }
 }

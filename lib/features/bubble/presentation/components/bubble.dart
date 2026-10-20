@@ -17,7 +17,9 @@ import 'package:bubble/features/bubble/models/bubble_config.dart';
 import 'package:bubble/features/bubble/models/bubble_style.dart';
 import 'package:bubble/features/bubble/presentation/rendering/bubble_renderer.dart';
 import 'package:bubble/core/contracts/laser_target.dart';
+import 'package:bubble/features/bubble/presentation/widgets/knowledge_bubble.dart';
 
+import '../../../game/presentation/bubble_game.dart';
 import 'bubble_label.dart';
 
 class Bubble extends PositionComponent
@@ -47,7 +49,7 @@ class Bubble extends PositionComponent
   final bool Function(String text) canPop;
   final bool isBurstBubble;
   /// Appelé lorsqu'une vraie bulle est correctement touchée.
-  final void Function()? onTargetPopped;
+  final void Function(Vector2 pos)? onTargetPopped;
   /// Détermine si le texte désigne une bulle qui disparaît définitivement.
   static bool _defaultCanPop(String t) {
     final s = t.trim().toLowerCase();
@@ -63,12 +65,92 @@ class Bubble extends PositionComponent
   String _text = '';
   BubbleLabel? _label;
   late BubbleRenderer _renderer;
-  late final Vector2 _dir;
-  late final Vector2 _perp;
+  late Vector2 _dir;
+  late Vector2 _perp;
   late final Vector2 _centerBase;
   late double _t;
   double _squash = 0;
   double _rendererAcc = 0;
+
+  Vector2 get moveDir => _dir;
+  Vector2 get centerBase => _centerBase;
+  Vector2 get movePerp => _perp;
+
+  bool get isCollisionActive => !_isPopping && !_isHidden && _opacity >= 0.5;
+
+  double get collisionRadius => (size.x + size.y) / 4;
+
+  void checkAndResolveCollision(dynamic other, {double padding = 6.0}) {
+    if (!isCollisionActive || other == null) return;
+
+    double otherRadius = 0;
+    Vector2? otherPos;
+    Vector2? otherDir;
+    Vector2? otherCenterBase;
+    Vector2? otherPerp;
+
+    if (other is Bubble) {
+      if (!other.isCollisionActive) return;
+      otherRadius = other.collisionRadius;
+      otherPos = other.position;
+      otherDir = other.moveDir;
+      otherCenterBase = other.centerBase;
+      otherPerp = other.movePerp;
+    } else if (other is KnowledgeBubbleComponent) {
+      if (!other.isCollisionActive) return;
+      otherRadius = other.collisionRadius;
+      otherPos = other.position;
+      otherDir = other.moveDir;
+      otherCenterBase = other.centerBase;
+      otherPerp = other.movePerp;
+    } else {
+      return;
+    }
+
+    final delta = otherPos - position;
+    var distance = delta.length;
+    final minDistance = collisionRadius + otherRadius + padding;
+
+    if (distance < minDistance) {
+      Vector2 normal;
+      if (distance < 0.001) {
+        final dirDiff = _dir - otherDir;
+        normal = dirDiff.length > 0.001 ? dirDiff.normalized() : Vector2(1, 0);
+        distance = 0.001;
+      } else {
+        normal = delta / distance;
+      }
+
+      final overlap = minDistance - distance;
+
+      // 1) Écarte légèrement les deux bulles pour maintenir le padding sans chevauchement
+      final separation = normal * (overlap / 2);
+      position.sub(separation);
+      _centerBase.sub(separation);
+
+      otherPos.add(separation);
+      otherCenterBase.add(separation);
+
+      // 2) Rebond élastique : échange des composantes de vitesse le long de la normale
+      final vaNormal = _dir.dot(normal);
+      final vbNormal = otherDir.dot(normal);
+
+      if (vaNormal - vbNormal > 0) {
+        _dir.add(normal * (vbNormal - vaNormal));
+        otherDir.add(normal * (vaNormal - vbNormal));
+
+        if (_dir.length > 0.001) {
+          _dir.normalize();
+        }
+        if (otherDir.length > 0.001) {
+          otherDir.normalize();
+        }
+
+        _perp.setValues(-_dir.y, _dir.x);
+        otherPerp.setValues(-otherDir.y, otherDir.x);
+      }
+    }
+  }
 
   // ── Rouge ──
   double _redness = 0; // 0 = normal, 1 = tout rouge
@@ -90,8 +172,8 @@ class Bubble extends PositionComponent
   // ── Explosion ──
   bool _isPopping = false;
   double _popProgress = 0.0;
-  static const double _popDuration = 0.65;
-  static const double _holeDuration = 0.14;
+  static const double _popDuration = 0.3;
+  static const double _holeDuration = 0.1;
   static const double _holeFrac = _holeDuration / _popDuration;
 
   /// Délai d'attente après l'explosion avant le retour d'une bulle fausse.
@@ -223,10 +305,6 @@ class Bubble extends PositionComponent
     // Décidé AVANT de toucher au label
    _returnsAfterPop = !isTarget;
 
-  if (isTarget) {
-    onTargetPopped?.call();
-  }
-
   playEffect();
     _isPopping = true;
     _popProgress = 0;
@@ -248,11 +326,6 @@ class Bubble extends PositionComponent
 
     final dropColor = _isRed ? const Color(0xFFFF3B3B) : config.style.baseColor;
 
-    if (!_returnsAfterPop) {
-      final impactPosition =
-          absoluteCenter + Vector2(_popOrigin.dx - rx, _popOrigin.dy - ry);
-      _spawnPopBubbles(impactPosition);
-    }
 
     // Moins de particules = beaucoup moins de travail par frame
     _particles.clear();
@@ -292,37 +365,40 @@ class Bubble extends PositionComponent
     }
   }
 
-  /// Crée des bulles réelles qui se dispersent depuis le point d'impact.
-  void _spawnPopBubbles(Vector2 origin) {
-    const count = 5;
-    final style = config.style.copyWith(size: const Size(60, 60));
-    final List<String> key= [
-      "Hello","Mada","Inde","France","Paris"
-    ];
-    for (var i = 0; i < count; i++) {
-      final angle = _random.nextDouble() * 2 * pi;
-      game.add(
-        Bubble(
-          position: origin.clone(),
-          textColor: textColor,
-          random: _random,
-          isBurstBubble: true,
-          config: BubbleConfig(
-            style: style,
-            text: key[i],
-            speed: 70 + _random.nextDouble() * 180,
-            customDirection: Vector2(cos(angle), sin(angle)),
-            waveAmplitude: 0,
-            maxLines: config.maxLines,
-            autoFit: config.autoFit,
-          ),
-        ),
-      );
-    }
-  }
+  // /// Crée des bulles réelles qui se dispersent depuis le point d'impact.
+  // void _spawnPopBubbles(Vector2 origin) {
+  //   const count = 5;
+  //   final style = config.style.copyWith(size: const Size(60, 60));
+  //   final List<String> key= [
+  //     "Goods","Smarty","Great","Perfect","Amazing"
+  //   ];
+  //   for (var i = 0; i < count; i++) {
+  //     final angle = _random.nextDouble() * 2 * pi;
+  //     game.add(
+  //       Bubble(
+  //         position: origin.clone(),
+  //         textColor: textColor,
+  //         random: _random,
+  //         isBurstBubble: true,
+  //         config: BubbleConfig(
+  //           style: style,
+  //           text: key[i],
+  //           speed: 70 + _random.nextDouble() * 180,
+  //           customDirection: Vector2(cos(angle), sin(angle)),
+  //           waveAmplitude: 0,
+  //           maxLines: config.maxLines,
+  //           autoFit: config.autoFit,
+  //         ),
+  //       ),
+  //     );
+  //   }
+  // }
 
   /// Fin de l'animation: vraie = supprimée, fausse = invisible en attendant de revenir.
   void _finishPop() {
+    if (isTarget) {
+      onTargetPopped?.call(position);
+    }
     if (!_returnsAfterPop) {
       removeFromParent();
       return;
@@ -431,6 +507,10 @@ class Bubble extends PositionComponent
   void update(double dt) {
     super.update(dt);
 
+    if ((game as BubbleGame).isFrozen && !isBurstBubble) {
+      return;
+    }
+
     // 1) Explosion en cours
     if (_isPopping) {
       _popProgress += dt / _popDuration;
@@ -469,6 +549,9 @@ class Bubble extends PositionComponent
 
     if (_isOffScreen()) {
       if (isBurstBubble) {
+        if (game is BubbleGame) {
+          (game as BubbleGame).onKnowledgeBubbleRemoved();
+        }
         removeFromParent();
       } else {
         _respawn();
@@ -478,7 +561,18 @@ class Bubble extends PositionComponent
 
   /// Fait dériver la bulle le long de sa direction avec un mouvement ondulé.
   void _drift(double dt) {
-    _centerBase.add(_dir * (config.speed * dt));
+    double speedMultiplier = 1.0;
+    if (isBurstBubble && (game as BubbleGame).isFrozen) {
+      final elapsed = (game as BubbleGame).elapsedFreezeTime;
+      if (elapsed < 0.78) {
+        speedMultiplier = 2.0; // Plus lent au début (premières 2s)
+      } else if(elapsed < 2){
+        speedMultiplier = 0.5; // Rapide après 2s
+      }else{
+        speedMultiplier=2.0;
+      }
+    }
+    _centerBase.add(_dir * (config.speed * dt * speedMultiplier));
     final wave =
         _perp * (sin(_t * config.waveFrequency) * config.waveAmplitude);
     position.setFrom(_centerBase + wave);
