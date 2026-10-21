@@ -6,7 +6,7 @@ import 'audio_generation/sound_sfx.dart';
 import 'core/presentation/widgets/space_background.dart';
 import 'features/curio/presentation/widgets/curio_timer.dart';
 import 'features/game/presentation/bubble_game.dart';
-import 'features/game/presentation/overlays/game_result_overlay.dart';
+// import 'features/game/presentation/overlays/game_result_overlay.dart';
 
 /// Initialise les dépendances Flutter/audio et lance l'écran principal.
 Future<void> main() async {
@@ -33,10 +33,10 @@ Future<void> main() async {
             overlayBuilderMap: {
               BubbleGame.curioOverlay: (context, game) =>
                   CurioOverlay(game: game),
-              BubbleGame.victoryOverlay: (context, game) =>
-                  GameResultOverlay(didWin: true, onRestart: game.restart),
-              BubbleGame.gameOverOverlay: (context, game) =>
-                  GameResultOverlay(didWin: false, onRestart: game.restart),
+              // BubbleGame.victoryOverlay: (context, game) =>
+              //     GameResultOverlay(didWin: true, onRestart: game.restart),
+              // BubbleGame.gameOverOverlay: (context, game) =>
+              //     GameResultOverlay(didWin: false, onRestart: game.restart),
             },
           ),
         ),

@@ -14,11 +14,11 @@ import 'bubble_renderer.dart';
 /// Drawn in a circle then stretched to `size`.
 class SphereRenderer implements BubbleRenderer {
   SphereRenderer(BubbleStyle s)
-    : _w = s.size.width,
-      _h = s.size.height,
-      _r = max(s.size.width, s.size.height) / 2,
-      _base = s.baseColor,
-      _phase = Random().nextDouble() * 2 * pi {
+      : _w = s.size.width,
+        _h = s.size.height,
+        _r = max(s.size.width, s.size.height) / 2,
+        _base = s.baseColor,
+        _phase = Random().nextDouble() * 2 * pi {
     final r = _r;
     final c = Offset(r, r);
     _c = c;
@@ -84,7 +84,7 @@ class SphereRenderer implements BubbleRenderer {
     _rimAlpha = s.rimAlpha;
     _rim = Paint()
       ..style = PaintingStyle.stroke
-      ..strokeWidth = r * 0.012
+      ..strokeWidth = r * s.rimWidth
       ..color = _rimColor.withValues(alpha: _rimAlpha);
 
     // Highlights
@@ -136,7 +136,7 @@ class SphereRenderer implements BubbleRenderer {
   final double _w, _h, _r;
   final Color _base;
   final double
-  _phase; // offsets bubbles from each other so they are not synchronous
+      _phase; // offsets bubbles from each other so they are not synchronous
   late final Offset _c;
   late final Rect _rect;
   late final Color _rimColor;
@@ -231,71 +231,71 @@ class SphereRenderer implements BubbleRenderer {
 
   @override
   void paintBody(Canvas c) => _fit(c, () {
-    final p = _t + _phase;
-    c.drawCircle(_c, _r, _body);
-    c.drawCircle(_c, _r, _shade);
-    c
-      ..save()
-      ..translate(_r * 0.05 * sin(p * 0.7), _r * 0.05 * cos(p * 0.9))
-      ..drawCircle(_c, _r * 0.97, _caustic)
-      ..restore();
+        final p = _t + _phase;
+        c.drawCircle(_c, _r, _body);
+        c.drawCircle(_c, _r, _shade);
+        c
+          ..save()
+          ..translate(_r * 0.05 * sin(p * 0.7), _r * 0.05 * cos(p * 0.9))
+          ..drawCircle(_c, _r * 0.97, _caustic)
+          ..restore();
 
-    // Iridescent film 1 (clockwise)
-    c
-      ..save()
-      ..translate(_c.dx, _c.dy)
-      ..rotate(p * 0.4)
-      ..translate(-_c.dx, -_c.dy)
-      ..drawCircle(_c, _r * 0.9, _iris)
-      ..restore();
+        // Iridescent film 1 (clockwise)
+        c
+          ..save()
+          ..translate(_c.dx, _c.dy)
+          ..rotate(p * 0.4)
+          ..translate(-_c.dx, -_c.dy)
+          ..drawCircle(_c, _r * 0.9, _iris)
+          ..restore();
 
-    // Iridescent film 2 (counter-clockwise, smaller, different speed)
-    c
-      ..save()
-      ..translate(_c.dx, _c.dy)
-      ..rotate(-p * 0.27)
-      ..translate(-_c.dx, -_c.dy)
-      ..drawCircle(_c, _r * 0.8, _iris2)
-      ..restore();
+        // Iridescent film 2 (counter-clockwise, smaller, different speed)
+        c
+          ..save()
+          ..translate(_c.dx, _c.dy)
+          ..rotate(-p * 0.27)
+          ..translate(-_c.dx, -_c.dy)
+          ..drawCircle(_c, _r * 0.8, _iris2)
+          ..restore();
 
-    c.drawCircle(_c, _r * 0.985, _rim);
-  });
+        c.drawCircle(_c, _r * 0.985, _rim);
+      });
 
   @override
   void paintGloss(Canvas c) => _fit(c, () {
-    final r = _r;
-    final p = _t + _phase;
+        final r = _r;
+        final p = _t + _phase;
 
-    // Floating light crescents
-    c.drawArc(
-      _arcRect(0.9),
-      3.3 + 0.08 * sin(p * 0.9),
-      1.3 + 0.12 * sin(p * 1.4),
-      false,
-      _arcTL,
-    );
-    c.drawArc(
-      _arcRect(0.92),
-      0.25 - 0.06 * sin(p * 1.1),
-      0.95 + 0.1 * sin(p * 1.7),
-      false,
-      _arcBR,
-    );
+        // Floating light crescents
+        c.drawArc(
+          _arcRect(0.9),
+          3.3 + 0.08 * sin(p * 0.9),
+          1.3 + 0.12 * sin(p * 1.4),
+          false,
+          _arcTL,
+        );
+        c.drawArc(
+          _arcRect(0.92),
+          0.25 - 0.06 * sin(p * 1.1),
+          0.95 + 0.1 * sin(p * 1.7),
+          false,
+          _arcBR,
+        );
 
-    // Specular reflection: shimmering concentric crescent
-    final tw = 0.85 + 0.15 * sin(p * 2.6 + 1);
-    const white = Color(0xFFFFFFFF);
-    c
-      ..save()
-      ..translate(_c.dx, _c.dy)
-      ..rotate(_specTheta + 0.05 * sin(p * 1.2));
+        // Specular reflection: shimmering concentric crescent
+        final tw = 0.85 + 0.15 * sin(p * 2.6 + 1);
+        const white = Color(0xFFFFFFFF);
+        c
+          ..save()
+          ..translate(_c.dx, _c.dy)
+          ..rotate(_specTheta + 0.05 * sin(p * 1.2));
 
-    _spec.color = white.withValues(alpha: 0.95 * tw);
-    c.drawPath(_specPath, _spec); // core
-    c.drawCircle(_specHot, r * 0.038, _spec); // hot spot
+        _spec.color = white.withValues(alpha: 0.95 * tw);
+        c.drawPath(_specPath, _spec); // core
+        c.drawCircle(_specHot, r * 0.038, _spec); // hot spot
 
-    _spec.color = white.withValues(alpha: 0.6 * tw);
-    c.drawCircle(_specDot, r * 0.022, _spec); // helper point
-    c.restore();
-  });
+        _spec.color = white.withValues(alpha: 0.6 * tw);
+        c.drawCircle(_specDot, r * 0.022, _spec); // helper point
+        c.restore();
+      });
 }

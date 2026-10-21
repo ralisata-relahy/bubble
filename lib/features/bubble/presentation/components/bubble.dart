@@ -15,7 +15,6 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:vibration/vibration.dart';
 
 import 'package:bubble/features/bubble/models/bubble_config.dart';
-import 'package:bubble/features/bubble/models/bubble_style.dart';
 import 'package:bubble/core/contracts/knowledge_bubble_host.dart';
 import 'package:bubble/features/bubble/presentation/rendering/bubble_renderer.dart';
 import 'package:bubble/core/contracts/laser_target.dart';
@@ -306,10 +305,9 @@ class Bubble extends PositionComponent
   void pop() {
     if (_isPopping || _isHidden) return;
 
-    // Capture la cible et démarre la transition dès l'impact réussi.
+    // Mémorise si la bulle doit disparaître ou revenir après l'explosion.
     final targetWasHit = isTarget;
     _returnsAfterPop = !targetWasHit;
-    if (targetWasHit) onTargetImpact?.call(position.clone());
 
     playEffect();
     _isPopping = true;
@@ -373,6 +371,7 @@ class Bubble extends PositionComponent
   /// Fin de l'animation: vraie = supprimée, fausse = invisible en attendant de revenir.
   void _finishPop() {
     if (!_returnsAfterPop) {
+      onTargetImpact?.call(position.clone());
       removeFromParent();
       return;
     }
@@ -462,11 +461,9 @@ class Bubble extends PositionComponent
 
   /// Construit le label en tenant compte de la forme et du style de la bulle.
   BubbleLabel _buildLabel(String value) {
-    final isCube = config.style.shape == BubbleShape.cube;
-
     return BubbleLabel(
       text: value,
-      box: isCube ? config.style.size * 0.7 : config.style.size,
+      box: config.style.size,
       textCenter: Offset(size.x / 2, size.y / 2),
       maxLines: config.maxLines,
       autoFit: config.autoFit,
@@ -504,7 +501,7 @@ class Bubble extends PositionComponent
     // 3) Normal
     _t += dt;
     _drift(dt);
-    _bounceAtBottomEdge();
+    keepAboveRespawnLine();
 
     _rendererAcc += dt;
     if (_rendererAcc >= 1 / 30) {
@@ -560,17 +557,22 @@ class Bubble extends PositionComponent
     _squash = config.breathAmplitude * sin(_t * config.breathSpeed);
   }
 
-  /// Rebondit sur le bas de l'écran en conservant la bulle dans le canvas.
-  void _bounceAtBottomEdge() {
-    if (_dir.y <= 0) return;
-
-    final overflow = position.y + _halfH - game.size.y;
+  /// Garde la bulle au-dessus de la ligne du laser et la fait rebondir dessus.
+  void keepAboveRespawnLine() {
+    final host = game is KnowledgeBubbleHost
+        ? game as KnowledgeBubbleHost
+        : null;
+    final lineY = host?.bubbleRespawnY ?? game.size.y;
+    final maxCenterY = lineY - _halfH;
+    final overflow = position.y - maxCenterY;
     if (overflow <= 0) return;
 
     position.y -= overflow;
     _centerBase.y -= overflow;
-    _dir.y = -_dir.y;
-    _perp.setValues(-_dir.y, _dir.x);
+    if (_dir.y > 0) {
+      _dir.y = -_dir.y;
+      _perp.setValues(-_dir.y, _dir.x);
+    }
   }
 
   /// Indique si la bulle a entièrement quitté les limites de l'écran.
@@ -578,7 +580,7 @@ class Bubble extends PositionComponent
     if (_dir.x > 0 && position.x - _halfW > game.size.x) return true;
     if (_dir.x < 0 && position.x + _halfW < 0) return true;
     if (_dir.y > 0 && position.y - _halfH > game.size.y) return true;
-    if (_dir.y < 0 && position.y + _halfH < 0) return true;
+    if (_dir.y < 0 && position.y - (_halfH/2) < 0) return true;
     return false;
   }
 
@@ -589,10 +591,10 @@ class Bubble extends PositionComponent
 
     if (_dir.x > 0) {
       x = -_halfW;
-      y = _halfH + _random.nextDouble() * (game.size.y - size.y);
+      y = _randomYAboveRespawnLine();
     } else if (_dir.x < 0) {
       x = game.size.x + _halfW;
-      y = _halfH + _random.nextDouble() * (game.size.y - size.y);
+      y = _randomYAboveRespawnLine();
     }
 
     if (_dir.y > 0) {
@@ -602,12 +604,21 @@ class Bubble extends PositionComponent
       final host = game is KnowledgeBubbleHost
           ? game as KnowledgeBubbleHost
           : null;
-      y = host?.bubbleRespawnY ?? game.size.y + _halfH;
+      y = (host?.bubbleRespawnY ?? game.size.y) - _halfH;
       x = _halfW + _random.nextDouble() * (game.size.x - size.x);
     }
 
     _centerBase.setValues(x, y);
     position.setFrom(_centerBase);
+  }
+
+  double _randomYAboveRespawnLine() {
+    final host = game is KnowledgeBubbleHost
+        ? game as KnowledgeBubbleHost
+        : null;
+    final maxCenterY = (host?.bubbleRespawnY ?? game.size.y) - _halfH;
+    final availableHeight = math.max(0.0, maxCenterY - _halfH);
+    return _halfH + _random.nextDouble() * availableHeight;
   }
 
   // ───────────────────────── Rendu ─────────────────────────

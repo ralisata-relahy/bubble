@@ -41,7 +41,11 @@ class LaserBeam extends PositionComponent with HasGameReference<BubbleGame> {
     if (_label != null) add(_label);
   }
 
-  void updateLabelText(String newText) => _label?.text = newText;
+  void updateLabel(String newText, Color newColor) {
+    _label
+      ?..text = newText
+      ..color = newColor;
+  }
 
   double _edutainerScale = 1;
   Vector2 _shotOrigin = Vector2.zero();

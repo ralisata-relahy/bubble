@@ -1,7 +1,7 @@
 import 'dart:ui';
 
 /// Shape of the bubble.
-enum BubbleShape { sphere, ellipsoid, cube }
+enum BubbleShape { sphere, ellipsoid }
 
 /// An arc highlight (luminous border along the edge).
 class ArcStyle {

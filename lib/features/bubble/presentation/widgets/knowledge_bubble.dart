@@ -147,10 +147,10 @@ class KnowledgeBubbleComponent extends PositionComponent
         shape: switch (config.style.shape) {
           BubbleShape.sphere => bubble_texture.BubbleShape.sphere,
           BubbleShape.ellipsoid => bubble_texture.BubbleShape.ellipsoid,
-          BubbleShape.cube => bubble_texture.BubbleShape.cube,
         },
         size: config.style.size,
         baseColor: config.style.baseColor,
+        rimWidth: config.style.rimWidth,
       ),
     );
 

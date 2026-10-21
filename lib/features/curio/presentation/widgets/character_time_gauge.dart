@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 
+import 'package:bubble/audio_generation/sound_effect.dart';
 import 'package:bubble/features/curio/character_backup_widget.dart';
 import 'package:flutter/material.dart';
 
@@ -70,7 +71,10 @@ class CharacterTimeGaugeState extends State<CharacterTimeGauge>
   Mood _moodFor(double r) {
     if (r > 0.66) return Mood.happy;
     if (r > 0.33) return Mood.angry;
-    if (r > 0.15) return Mood.sad;
+    if (r > 0.15){
+      SoundEffects.play(Sfx.alert);
+      return Mood.sad;
+    }
     return Mood.sad;
   }
 

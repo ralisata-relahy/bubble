@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math';
 
 import 'package:bubble/core/contracts/knowledge_bubble_host.dart';
@@ -31,6 +32,8 @@ class BubbleGame extends FlameGame
 
   /// Source aléatoire partagée pour les positions, couleurs et trajectoires.
   final _random = Random();
+  Set<Color> _previousRoundColors = {};
+  final Set<Color> _roundColors = {};
 
   /// Faisceau actif, remplacé au début de chaque manche.
   LaserBeam? _laser;
@@ -38,7 +41,6 @@ class BubbleGame extends FlameGame
   /// État de progression de la question et des bulles de connaissance.
   bool _won = false;
   bool _gameOver = false;
-  bool _victoryOverlayShown = false;
   late String _currentAnswer;
   late int _currentQuestionId;
   @override
@@ -55,8 +57,15 @@ class BubbleGame extends FlameGame
     super.update(dt);
     if (isFrozen) {
       elapsedFreezeTime += dt;
-      if (_won && elapsedFreezeTime >= knowledgeScatterDuration) {
-        _showVictoryOverlay();
+      if (elapsedFreezeTime >= knowledgeScatterDuration) {
+        if (_won) {
+          _won = false;
+          isFrozen = false;
+          elapsedFreezeTime = 0.0;
+          gaugeKey.currentState?.restart();
+        } else if (_gameOver) {
+          restart();
+        }
       }
     }
     _handleBubbleCollisions();
@@ -86,24 +95,39 @@ class BubbleGame extends FlameGame
         }
       }
     }
+
+    for (final bubble in children.whereType<Bubble>()) {
+      bubble.keepAboveRespawnLine();
+    }
   }
 
-  /// Affiche l'échec uniquement si la bonne bulle n'a pas déjà été touchée.
+  Color _nextRoundColor() {
+    var availableColors = Colors.primaries
+        .where(
+          (color) =>
+              !_previousRoundColors.contains(color) &&
+              !_roundColors.contains(color),
+        )
+        .toList();
+    if (availableColors.isEmpty) {
+      availableColors = Colors.primaries
+          .where((color) => !_roundColors.contains(color))
+          .toList();
+    }
+
+    final color = availableColors[_random.nextInt(availableColors.length)];
+    _roundColors.add(color);
+    return color;
+  }
+
+  /// Attend la fin du délai avant de relancer une manche après expiration.
   void onTimeUp() {
     if (_won || _gameOver) return;
 
     _gameOver = true;
-    overlays.add(gameOverOverlay);
-    pauseEngine();
-  }
-
-  /// Affiche une seule fois le résultat quand le délai de dispersion est écoulé.
-  void _showVictoryOverlay() {
-    if (_victoryOverlayShown || _gameOver) return;
-
-    _victoryOverlayShown = true;
-    overlays.add(victoryOverlay);
-    pauseEngine();
+    isFrozen = true;
+    elapsedFreezeTime = 0.0;
+    gaugeKey.currentState?.pause();
   }
 
   /// Laisse le fond Flutter visible derrière le canvas du jeu.
@@ -132,23 +156,35 @@ class BubbleGame extends FlameGame
   }
 
   /// Installe le laser et génère les bulles de réponse de la question courante.
-  Future<void> _startRound() async {
+  Future<void> _startRound({bool reuseLaser = false}) async {
     final gameSize = size.x > 0 ? size : Vector2(800, 600);
     final question = GameQuestions.all[_currentQuestionId];
     _currentAnswer = question.answer;
+    _previousRoundColors = Set<Color>.of(_roundColors);
+    _roundColors.clear();
 
-    final laser = LaserBeam(
-      origin: Vector2(gameSize.x / 2, gameSize.y * 0.76),
-      targetPosition: Vector2(gameSize.x / 2, gameSize.y * 0.58),
-      label: question.prompt,
-      labelColor: Colors.primaries[_random.nextInt(Colors.primaries.length)],
-    );
-    _laser = laser;
-    laser.fitToViewport(gameSize);
-    await add(laser);
+    final labelColor = _nextRoundColor();
+    final laser = _laser;
+    if (reuseLaser && laser != null) {
+      for (final bubble in children.whereType<Bubble>().toList()) {
+        bubble.removeFromParent();
+      }
+      laser.updateLabel(question.prompt, labelColor);
+      laser.fitToViewport(gameSize);
+    } else {
+      final newLaser = LaserBeam(
+        origin: Vector2(gameSize.x / 2, gameSize.y * 0.76),
+        targetPosition: Vector2(gameSize.x / 2, gameSize.y * 0.58),
+        label: question.prompt,
+        labelColor: labelColor,
+      );
+      _laser = newLaser;
+      newLaser.fitToViewport(gameSize);
+      await add(newLaser);
+    }
 
     for (final choice in question.choices) {
-      final color = Colors.primaries[_random.nextInt(Colors.primaries.length)];
+      final color = _nextRoundColor();
       await _spawn(
         choice,
         BubbleDirection.bottomToTop,
@@ -194,14 +230,14 @@ class BubbleGame extends FlameGame
   Vector2 _randomPosition(double halfWidth, double halfHeight) {
     final gameSize = size.x > 0 ? size : Vector2(800, 600);
     final availableWidth = max(0.0, gameSize.x - 2 * halfWidth);
-    final availableHeight = max(0.0, gameSize.y - 2 * halfHeight);
+    final availableHeight = max(0.0, bubbleRespawnY - 2 * halfHeight);
 
     return Vector2(
       availableWidth == 0
           ? gameSize.x / 2
           : halfWidth + _random.nextDouble() * availableWidth,
       availableHeight == 0
-          ? gameSize.y / 2
+          ? max(0.0, bubbleRespawnY - halfHeight)
           : halfHeight + _random.nextDouble() * availableHeight,
     );
   }
@@ -212,13 +248,15 @@ class BubbleGame extends FlameGame
 
     _won = true;
     isFrozen = true;
-    _victoryOverlayShown = false;
     elapsedFreezeTime = 0.0;
     gaugeKey.currentState?.pause();
+    final previousQuestionId = _currentQuestionId;
     _spawnKnowledgeBubbles(
       popPosition,
-      GameQuestions.all[_currentQuestionId].knowledge,
+      GameQuestions.all[previousQuestionId].knowledge,
     );
+    _selectRandomQuestion(excluding: previousQuestionId);
+    unawaited(_startRound(reuseLaser: true));
   }
 
   /// Fait partir radialement les notions liées à la question qui vient d'être résolue.
@@ -242,6 +280,7 @@ class BubbleGame extends FlameGame
               shape: BubbleShape.ellipsoid,
               size: bubbleSize,
               baseColor: Colors.white,
+              rimWidth: 0.04,
             ),
             text: knowledge[index],
             speed: 50 + _random.nextDouble() * 30,
@@ -256,8 +295,6 @@ class BubbleGame extends FlameGame
   /// Supprime les entités de la manche précédente et installe la suivante.
   void restart() {
     final previousQuestionId = _currentQuestionId;
-    overlays.remove(victoryOverlay);
-    overlays.remove(gameOverOverlay);
 
     for (final child in children.toList()) {
       if (child is Bubble || child is KnowledgeBubbleComponent) {
@@ -269,7 +306,6 @@ class BubbleGame extends FlameGame
     _laser = null;
     _won = false;
     _gameOver = false;
-    _victoryOverlayShown = false;
     isFrozen = false;
     elapsedFreezeTime = 0.0;
     _selectRandomQuestion(excluding: previousQuestionId);
