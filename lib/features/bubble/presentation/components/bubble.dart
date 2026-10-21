@@ -4,6 +4,7 @@ import 'dart:math';
 import 'dart:math' as math;
 import 'dart:ui';
 
+import 'package:bubble/audio_generation/sound_effect.dart';
 import 'package:flame/components.dart';
 import 'package:flame/game.dart';
 import 'package:flame_audio/flame_audio.dart';
@@ -15,11 +16,11 @@ import 'package:vibration/vibration.dart';
 
 import 'package:bubble/features/bubble/models/bubble_config.dart';
 import 'package:bubble/features/bubble/models/bubble_style.dart';
+import 'package:bubble/core/contracts/knowledge_bubble_host.dart';
 import 'package:bubble/features/bubble/presentation/rendering/bubble_renderer.dart';
 import 'package:bubble/core/contracts/laser_target.dart';
 import 'package:bubble/features/bubble/presentation/widgets/knowledge_bubble.dart';
 
-import '../../../game/presentation/bubble_game.dart';
 import 'bubble_label.dart';
 
 class Bubble extends PositionComponent
@@ -27,14 +28,14 @@ class Bubble extends PositionComponent
     implements LaserTarget {
   /// Crée une bulle à la position et avec le style demandés.
   Bubble({
-  required Vector2 position,
-  this.config = const BubbleConfig(),
-  this.textColor = Colors.white,
-  this.canPop = _defaultCanPop,
-  this.isBurstBubble = false,
-  this.onTargetPopped,
-  Random? random,
-}) : _random = random ?? Random(),
+    required Vector2 position,
+    this.config = const BubbleConfig(),
+    this.textColor = Colors.white,
+    this.canPop = _defaultCanPop,
+    this.isBurstBubble = false,
+    this.onTargetImpact,
+    Random? random,
+  }) : _random = random ?? Random(),
        super(
          position: position,
          size: Vector2(config.style.size.width, config.style.size.height),
@@ -48,8 +49,10 @@ class Bubble extends PositionComponent
   /// (elle explose et disparaît). Sinon elle explose puis revient en rouge.
   final bool Function(String text) canPop;
   final bool isBurstBubble;
-  /// Appelé lorsqu'une vraie bulle est correctement touchée.
-  final void Function(Vector2 pos)? onTargetPopped;
+
+  /// Appelé dès que le laser touche la bonne bulle.
+  final void Function(Vector2 pos)? onTargetImpact;
+
   /// Détermine si le texte désigne une bulle qui disparaît définitivement.
   static bool _defaultCanPop(String t) {
     final s = t.trim().toLowerCase();
@@ -240,7 +243,7 @@ class Bubble extends PositionComponent
     final shortSide = min(size.x, size.y);
     return GoogleFonts.poppins(
       color: textColor,
-      fontSize: shortSide * 0.3,
+      fontSize: 33,
       fontWeight: FontWeight.bold,
       shadows: [
         Shadow(
@@ -289,10 +292,11 @@ class Bubble extends PositionComponent
   /// Joue le son correspondant au résultat et vibre pour une réponse fausse.
   void playEffect() {
     if (isTarget) {
-      FlameAudio.play('bouble_pop.mp3');
+      SoundEffects.play(Sfx.beamCorrect);
     } else {
       if (_canVibrate) Vibration.vibrate(duration: 50);
-      FlameAudio.play('e-ho.mp3');
+      SoundEffects.play(Sfx.burst);
+      SoundEffects.play(Sfx.redForming);
     }
   }
 
@@ -302,10 +306,12 @@ class Bubble extends PositionComponent
   void pop() {
     if (_isPopping || _isHidden) return;
 
-    // Décidé AVANT de toucher au label
-   _returnsAfterPop = !isTarget;
+    // Capture la cible et démarre la transition dès l'impact réussi.
+    final targetWasHit = isTarget;
+    _returnsAfterPop = !targetWasHit;
+    if (targetWasHit) onTargetImpact?.call(position.clone());
 
-  playEffect();
+    playEffect();
     _isPopping = true;
     _popProgress = 0;
     _label?.removeFromParent();
@@ -325,7 +331,6 @@ class Bubble extends PositionComponent
     _popMaxHole = (rx > ry ? rx : ry) * 2.1;
 
     final dropColor = _isRed ? const Color(0xFFFF3B3B) : config.style.baseColor;
-
 
     // Moins de particules = beaucoup moins de travail par frame
     _particles.clear();
@@ -365,40 +370,8 @@ class Bubble extends PositionComponent
     }
   }
 
-  // /// Crée des bulles réelles qui se dispersent depuis le point d'impact.
-  // void _spawnPopBubbles(Vector2 origin) {
-  //   const count = 5;
-  //   final style = config.style.copyWith(size: const Size(60, 60));
-  //   final List<String> key= [
-  //     "Goods","Smarty","Great","Perfect","Amazing"
-  //   ];
-  //   for (var i = 0; i < count; i++) {
-  //     final angle = _random.nextDouble() * 2 * pi;
-  //     game.add(
-  //       Bubble(
-  //         position: origin.clone(),
-  //         textColor: textColor,
-  //         random: _random,
-  //         isBurstBubble: true,
-  //         config: BubbleConfig(
-  //           style: style,
-  //           text: key[i],
-  //           speed: 70 + _random.nextDouble() * 180,
-  //           customDirection: Vector2(cos(angle), sin(angle)),
-  //           waveAmplitude: 0,
-  //           maxLines: config.maxLines,
-  //           autoFit: config.autoFit,
-  //         ),
-  //       ),
-  //     );
-  //   }
-  // }
-
   /// Fin de l'animation: vraie = supprimée, fausse = invisible en attendant de revenir.
   void _finishPop() {
-    if (isTarget) {
-      onTargetPopped?.call(position);
-    }
     if (!_returnsAfterPop) {
       removeFromParent();
       return;
@@ -507,7 +480,10 @@ class Bubble extends PositionComponent
   void update(double dt) {
     super.update(dt);
 
-    if ((game as BubbleGame).isFrozen && !isBurstBubble) {
+    final host = game is KnowledgeBubbleHost
+        ? game as KnowledgeBubbleHost
+        : null;
+    if (host?.isFrozen == true && !isBurstBubble && !_isPopping) {
       return;
     }
 
@@ -528,6 +504,7 @@ class Bubble extends PositionComponent
     // 3) Normal
     _t += dt;
     _drift(dt);
+    _bounceAtBottomEdge();
 
     _rendererAcc += dt;
     if (_rendererAcc >= 1 / 30) {
@@ -549,9 +526,6 @@ class Bubble extends PositionComponent
 
     if (_isOffScreen()) {
       if (isBurstBubble) {
-        if (game is BubbleGame) {
-          (game as BubbleGame).onKnowledgeBubbleRemoved();
-        }
         removeFromParent();
       } else {
         _respawn();
@@ -562,14 +536,17 @@ class Bubble extends PositionComponent
   /// Fait dériver la bulle le long de sa direction avec un mouvement ondulé.
   void _drift(double dt) {
     double speedMultiplier = 1.0;
-    if (isBurstBubble && (game as BubbleGame).isFrozen) {
-      final elapsed = (game as BubbleGame).elapsedFreezeTime;
+    final host = game is KnowledgeBubbleHost
+        ? game as KnowledgeBubbleHost
+        : null;
+    if (isBurstBubble && host?.isFrozen == true) {
+      final elapsed = host!.elapsedFreezeTime;
       if (elapsed < 0.78) {
         speedMultiplier = 2.0; // Plus lent au début (premières 2s)
-      } else if(elapsed < 2){
+      } else if (elapsed < 2) {
         speedMultiplier = 0.5; // Rapide après 2s
-      }else{
-        speedMultiplier=2.0;
+      } else {
+        speedMultiplier = 2.0;
       }
     }
     _centerBase.add(_dir * (config.speed * dt * speedMultiplier));
@@ -581,6 +558,19 @@ class Bubble extends PositionComponent
   /// Calcule la déformation périodique de respiration de la bulle.
   void _breathe() {
     _squash = config.breathAmplitude * sin(_t * config.breathSpeed);
+  }
+
+  /// Rebondit sur le bas de l'écran en conservant la bulle dans le canvas.
+  void _bounceAtBottomEdge() {
+    if (_dir.y <= 0) return;
+
+    final overflow = position.y + _halfH - game.size.y;
+    if (overflow <= 0) return;
+
+    position.y -= overflow;
+    _centerBase.y -= overflow;
+    _dir.y = -_dir.y;
+    _perp.setValues(-_dir.y, _dir.x);
   }
 
   /// Indique si la bulle a entièrement quitté les limites de l'écran.
@@ -609,7 +599,10 @@ class Bubble extends PositionComponent
       y = -_halfH;
       x = _halfW + _random.nextDouble() * (game.size.x - size.x);
     } else if (_dir.y < 0) {
-      y = game.size.y + _halfH;
+      final host = game is KnowledgeBubbleHost
+          ? game as KnowledgeBubbleHost
+          : null;
+      y = host?.bubbleRespawnY ?? game.size.y + _halfH;
       x = _halfW + _random.nextDouble() * (game.size.x - size.x);
     }
 

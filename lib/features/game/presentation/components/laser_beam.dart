@@ -3,6 +3,10 @@
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 
+import 'package:bubble/audio_generation/sound_effect.dart';
+
+import 'laser_label_box.dart';
+
 import 'package:flame/components.dart';
 import 'package:flutter/material.dart';
 
@@ -13,7 +17,12 @@ import '../bubble_game.dart';
 
 /// A vibrant laser beam whose target can be moved by the user.
 class LaserBeam extends PositionComponent with HasGameReference<BubbleGame> {
-  late final TextComponent? labelComponent;
+  final LaserLabelBox? _label;
+
+  /// Espace entre le bas du mascotte et le panneau de texte.
+  static const double _labelGap = 4;
+  static const double _viewportMargin = 12;
+  static const double _respawnOffset = 2 * 96 / 2.54;
 
   LaserBeam({
     required Vector2 origin,
@@ -23,64 +32,33 @@ class LaserBeam extends PositionComponent with HasGameReference<BubbleGame> {
     this.thickness = 3.5,
     this.obstacles = const [],
     String? label,
-  }) : super(position: origin) {
-    _targetPosition = targetPosition ?? (origin + Vector2(200, -100));
-
-    if (label != null && label.isNotEmpty) {
-      final text = label;
-
-      const textStyle = TextStyle(
-        color: Colors.white,
-        fontSize: 16,
-        fontWeight: FontWeight.bold,
-      );
-
-      const padding = 16.0;
-      const maxTextWidth = 300.0;
-
-      final textPainter = TextPainter(
-        text: TextSpan(text: text, style: textStyle),
-        textDirection: TextDirection.ltr,
-        textAlign: TextAlign.center,
-      )..layout(maxWidth: maxTextWidth);
-
-      final boxSize = Vector2(
-        textPainter.width + padding * 1.5,
-        textPainter.height + padding * 1.5,
-      );
-
-      final labelBox = RectangleComponent(
-        size: boxSize,
-        anchor: Anchor.bottomCenter,
-        position: Vector2(
-          0,
-          (_edutainerSize.height / 2),
-        ),
-        paint: Paint()..color = Colors.black.withValues(alpha: 0.75),
-      );
-
-      labelComponent = TextComponent(
-        text: text,
-        anchor: Anchor.center,
-        position: boxSize / 2,
-        textRenderer: TextPaint(style: textStyle),
-      );
-
-      labelBox.add(labelComponent!);
-      add(labelBox);
-
-    } else {
-      labelComponent = null;
-    }
+    Color? labelColor,
+  }) : _label = (label == null || label.isEmpty)
+           ? null
+           : LaserLabelBox(text: label, accentColor: labelColor ?? color),
+       super(position: origin) {
+    _endPoint = targetPosition ?? origin.clone();
+    if (_label != null) add(_label);
   }
 
-  void updateLabelText(String newText) {
-    if (labelComponent != null) {
-      labelComponent!.text = newText;
-    }
-  }
+  void updateLabelText(String newText) => _label?.text = newText;
 
-  late Vector2 _targetPosition;
+  double _edutainerScale = 1;
+  Vector2 _shotOrigin = Vector2.zero();
+  Vector2 _shotEnd = Vector2.zero();
+  PositionComponent? _shotTargetComponent;
+  LaserTarget? _shotLaserTarget;
+  double _shotElapsed = 0;
+  bool _shotReturning = false;
+  bool _shotActive = false;
+
+  static const double _outboundDuration = 0.3;
+  static const double _returnDuration = 0.05;
+
+  Size get _scaledEdutainerSize => Size(
+    _edutainerSize.width * _edutainerScale,
+    _edutainerSize.height * _edutainerScale,
+  );
 
   final double maxLength;
   final Color color;
@@ -90,8 +68,6 @@ class LaserBeam extends PositionComponent with HasGameReference<BubbleGame> {
   Vector2 _endPoint = Vector2.zero();
 
   PositionComponent? _hitTarget;
-  LaserTarget? _previousTarget;
-
   // ── Paints réutilisés ──────────────────────────────────────────────
 
   late final Paint _outerGlow = Paint()
@@ -130,89 +106,177 @@ class LaserBeam extends PositionComponent with HasGameReference<BubbleGame> {
   );
 
   Vector2 get _laserOrigin {
-    final offset = _createEdutainerPainter().laserOrigin(_edutainerSize);
+    final edutainerSize = _scaledEdutainerSize;
+    final offset = _createEdutainerPainter().laserOrigin(edutainerSize);
     // The character is painted centered around the component origin below.
     // Convert the painter's top-left-relative point into that same local space.
     return position +
         Vector2(
-          offset.dx - _edutainerSize.width / 2,
-          offset.dy - _edutainerSize.height / 2,
+          offset.dx - edutainerSize.width / 2,
+          offset.dy - edutainerSize.height / 2,
         );
   }
 
+  /// Ligne de réapparition des bulles, deux centimètres au-dessus du laser.
+  double get bubbleRespawnY => _laserOrigin.y - _respawnOffset;
+
   PositionComponent? get hitTarget => _hitTarget;
 
-  void updateTarget(Vector2 newTarget) {
-    _targetPosition = newTarget;
+  /// Adapte la mascotte et son panneau à l'espace disponible dans le canvas.
+  void fitToViewport(Vector2 viewportSize) {
+    final maxLabelWidth = (viewportSize.x - _viewportMargin * 2)
+        .clamp(48.0, 352.0)
+        .toDouble();
+    _label?.maxWidth = maxLabelWidth;
+
+    final labelHeight = _label?.size.y ?? 0;
+    final widthScale =
+        (viewportSize.x - _viewportMargin * 2) / _edutainerSize.width;
+    final heightScale =
+        (viewportSize.y - labelHeight - _labelGap - _viewportMargin * 2) /
+        _edutainerSize.height;
+    _edutainerScale = math
+        .min(1.0, math.min(widthScale, heightScale))
+        .clamp(0.45, 1.0)
+        .toDouble();
+
+    final edutainerSize = _scaledEdutainerSize;
+    final minY = edutainerSize.height / 2 + _viewportMargin;
+    final maxY = math.max(
+      minY,
+      viewportSize.y -
+          edutainerSize.height / 2 -
+          _labelGap -
+          labelHeight -
+          _viewportMargin,
+    );
+    position.setValues(
+      viewportSize.x / 2,
+      (viewportSize.y * 0.76).clamp(minY, maxY).toDouble(),
+    );
+    _label?.position.y = edutainerSize.height / 2 + _labelGap;
+  }
+
+  /// Lance un tir jusqu'au point demandé, arrêté par la première bulle rencontrée.
+  void fireAt(Vector2 targetPosition) {
+    if (_shotActive) return;
+    SoundEffects.play(Sfx.laser);
+    _shotOrigin = _laserOrigin;
+    final toTarget = targetPosition - _shotOrigin;
+    final distance = math.min(toTarget.length, maxLength);
+    if (distance < 1e-5) return;
+
+    final direction = toTarget.normalized();
+    var impactDistance = distance;
+    PositionComponent? impactTarget;
+    LaserTarget? laserTarget;
+
+    for (final obstacle in obstacles) {
+      final intersection = _intersectRect(
+        _shotOrigin,
+        direction,
+        obstacle.toAbsoluteRect(),
+      );
+      if (intersection != null &&
+          intersection > 0 &&
+          intersection < impactDistance) {
+        impactDistance = intersection;
+        impactTarget = null;
+      }
+    }
+
+    for (final component in game.children.whereType<PositionComponent>()) {
+      if (component is! LaserTarget) continue;
+      final target = component as LaserTarget;
+      if (!target.canReceiveLaserHit) continue;
+
+      final intersection = _intersectEllipse(
+        _shotOrigin,
+        direction,
+        component.toAbsoluteRect(),
+      );
+      if (intersection != null &&
+          intersection > 0 &&
+          intersection < impactDistance) {
+        impactDistance = intersection;
+        impactTarget = component;
+        laserTarget = target;
+      }
+    }
+
+    _shotEnd = _shotOrigin + direction * impactDistance;
+    _shotTargetComponent = impactTarget;
+    _shotLaserTarget = laserTarget;
+    _shotElapsed = 0;
+    _shotReturning = false;
+    _shotActive = true;
+    _hitTarget = null;
+    _endPoint = _shotOrigin.clone();
   }
 
   @override
   void update(double dt) {
     super.update(dt);
 
-    if (game.isFrozen) {
-      return;
-    }
-
     _animationTime += dt;
-    _castRay(dt);
+    _updateShot(dt);
   }
 
-  void _castRay(double dt) {
-    final laserOrigin = _laserOrigin;
-    final toTarget = _targetPosition - laserOrigin;
-    final distanceToTarget = toTarget.length;
+  void _updateShot(double dt) {
+    if (!_shotActive) return;
 
-    if (distanceToTarget < 1e-5) {
-      _endPoint = laserOrigin;
-      _hitTarget = null;
-      _previousTarget = null;
+    _shotElapsed += dt;
+    if (_shotReturning) {
+      final progress = (_shotElapsed / _returnDuration).clamp(0.0, 1.0);
+      _endPoint = Vector2(
+        _shotEnd.x + (_shotOrigin.x - _shotEnd.x) * progress,
+        _shotEnd.y + (_shotOrigin.y - _shotEnd.y) * progress,
+      );
+      if (progress >= 1) {
+        _shotActive = false;
+        _hitTarget = null;
+      }
       return;
     }
 
-    final dir = toTarget.normalized();
-
-    var closestDistance = math.min(distanceToTarget, maxLength);
-
-    // Obstacles can clip the beam, but bubbles are only candidates at its tip.
-    for (final obstacle in obstacles) {
-      final intersectionDistance = _intersectRect(
-        laserOrigin,
-        dir,
-        obstacle.toAbsoluteRect(),
-      );
-
-      if (intersectionDistance != null &&
-          intersectionDistance > 0 &&
-          intersectionDistance < closestDistance) {
-        closestDistance = intersectionDistance;
+    final progress = (_shotElapsed / _outboundDuration).clamp(0.0, 1.0);
+    _endPoint = Vector2(
+      _shotOrigin.x + (_shotEnd.x - _shotOrigin.x) * progress,
+      _shotOrigin.y + (_shotEnd.y - _shotOrigin.y) * progress,
+    );
+    if (progress >= 1) {
+      _hitTarget = _shotTargetComponent;
+      final target = _shotLaserTarget;
+      if (target != null && target.canReceiveLaserHit) {
+        target.onLaserHit(_shotEnd, dt);
       }
+      _shotReturning = true;
+      _shotElapsed = 0;
     }
+  }
 
-    _endPoint = laserOrigin + dir * closestDistance;
+  /// Distance at which a ray first enters an axis-aligned ellipse.
+  double? _intersectEllipse(Vector2 origin, Vector2 direction, Rect rect) {
+    final radiusX = rect.width / 2;
+    final radiusY = rect.height / 2;
+    if (radiusX <= 0 || radiusY <= 0) return null;
 
-    LaserTarget? pointTarget;
-    PositionComponent? pointTargetComponent;
-    for (final component in game.children.whereType<PositionComponent>()) {
-      if (component is! LaserTarget) continue;
-      final target = component as LaserTarget;
-      if (!target.containsLaserPoint(_endPoint)) continue;
+    final offsetX = (origin.x - rect.center.dx) / radiusX;
+    final offsetY = (origin.y - rect.center.dy) / radiusY;
+    final directionX = direction.x / radiusX;
+    final directionY = direction.y / radiusY;
+    final a = directionX * directionX + directionY * directionY;
+    final b = 2 * (offsetX * directionX + offsetY * directionY);
+    final c = offsetX * offsetX + offsetY * offsetY - 1;
+    final discriminant = b * b - 4 * a * c;
+    if (a <= 0 || discriminant < 0) return null;
 
-      pointTarget = target;
-      pointTargetComponent = component;
-      break;
-    }
+    final root = math.sqrt(discriminant);
+    final nearDistance = (-b - root) / (2 * a);
+    if (nearDistance >= 0) return nearDistance;
 
-    _hitTarget = pointTarget?.canReceiveLaserHit == true
-        ? pointTargetComponent
-        : null;
-
-    if (pointTarget != _previousTarget) {
-      if (pointTarget?.canReceiveLaserHit == true) {
-        pointTarget!.onLaserHit(_endPoint, dt);
-      }
-      _previousTarget = pointTarget;
-    }
+    final farDistance = (-b + root) / (2 * a);
+    return farDistance >= 0 ? farDistance : null;
   }
 
   /// Ray / axis-aligned rectangle intersection.
@@ -265,11 +329,11 @@ class LaserBeam extends PositionComponent with HasGameReference<BubbleGame> {
 
   @override
   void render(Canvas canvas) {
-    final startOffset = (_laserOrigin - position).toOffset();
+    final startOffset = (_shotOrigin - position).toOffset();
     final endOffset = (_endPoint - position).toOffset();
     final direction = endOffset - startOffset;
     final length = direction.distance;
-    if (length > 1e-5) {
+    if (_shotActive && length > 1e-5) {
       final normal = Offset(-direction.dy, direction.dx) / length;
       final flicker = 0.8 + 0.2 * math.sin(_animationTime * 22);
       Path beam(double startWidth, double endWidth) => Path()
@@ -316,48 +380,50 @@ class LaserBeam extends PositionComponent with HasGameReference<BubbleGame> {
       }
     }
 
-    final impactColor = _hitTarget != null ? Colors.yellowAccent : color;
-
-    final flicker = 0.8 + 0.2 * math.sin(_animationTime * 22);
-    canvas.drawCircle(
-      endOffset,
-      20,
-      Paint()
-        ..color = impactColor.withValues(alpha: 0.5 * flicker)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 9),
-    );
-    final ring = (_animationTime * 1.2) % 1.0;
-    canvas.drawCircle(
-      endOffset,
-      8 + ring * 24,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 2
-        ..color = impactColor.withValues(alpha: (1 - ring) * 0.8 * flicker),
-    );
-    final radius = 13 + 3 * math.sin(_animationTime * 9);
-    final star = Path();
-    for (var i = 0; i < 8; i++) {
-      final r = i.isEven ? radius : radius * 0.28;
-      final angle = _animationTime * 2 + i * math.pi / 4;
-      final point = endOffset + Offset(math.cos(angle), math.sin(angle)) * r;
-      if (i == 0) {
-        star.moveTo(point.dx, point.dy);
-      } else {
-        star.lineTo(point.dx, point.dy);
+    if (_shotActive) {
+      final impactColor = _hitTarget != null ? Colors.yellowAccent : color;
+      final flicker = 0.8 + 0.2 * math.sin(_animationTime * 22);
+      canvas.drawCircle(
+        endOffset,
+        20,
+        Paint()
+          ..color = impactColor.withValues(alpha: 0.5 * flicker)
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 9),
+      );
+      final ring = (_animationTime * 1.2) % 1.0;
+      canvas.drawCircle(
+        endOffset,
+        8 + ring * 24,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 2
+          ..color = impactColor.withValues(alpha: (1 - ring) * 0.8 * flicker),
+      );
+      final radius = 13 + 3 * math.sin(_animationTime * 9);
+      final star = Path();
+      for (var i = 0; i < 8; i++) {
+        final r = i.isEven ? radius : radius * 0.28;
+        final angle = _animationTime * 2 + i * math.pi / 4;
+        final point = endOffset + Offset(math.cos(angle), math.sin(angle)) * r;
+        if (i == 0) {
+          star.moveTo(point.dx, point.dy);
+        } else {
+          star.lineTo(point.dx, point.dy);
+        }
       }
+      star.close();
+      canvas.drawPath(
+        star,
+        Paint()..color = Colors.white.withValues(alpha: 0.95 * flicker),
+      );
     }
-    star.close();
-    canvas.drawPath(
-      star,
-      Paint()..color = Colors.white.withValues(alpha: 0.95 * flicker),
-    );
 
     final edutainer = _createEdutainerPainter();
+    final edutainerSize = _scaledEdutainerSize;
     canvas
       ..save()
-      ..translate(-_edutainerSize.width / 2, -_edutainerSize.height / 2);
-    edutainer.paint(canvas, _edutainerSize);
+      ..translate(-edutainerSize.width / 2, -edutainerSize.height / 2);
+    edutainer.paint(canvas, edutainerSize);
     canvas.restore();
   }
 }

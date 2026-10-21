@@ -1,181 +1,154 @@
 import 'dart:math';
 
-import 'package:flame/components.dart';
-import 'package:flame/events.dart';
-import 'package:flame/game.dart';
-import 'package:flutter/material.dart'
-    show Color, Colors, Size, TextStyle, FontWeight;
-
+import 'package:bubble/core/contracts/knowledge_bubble_host.dart';
 import 'package:bubble/features/bubble/models/bubble_config.dart';
 import 'package:bubble/features/bubble/models/bubble_style.dart';
 import 'package:bubble/features/bubble/presentation/components/bubble.dart';
+import 'package:bubble/features/bubble/presentation/rendering/bubble_text_helper.dart';
+import 'package:bubble/features/bubble/presentation/widgets/knowledge_bubble.dart';
+import 'package:bubble/features/curio/presentation/widgets/character_time_gauge.dart';
+import 'package:bubble/features/game/data/game_questions.dart';
 import 'package:bubble/features/game/presentation/components/laser_beam.dart';
+import 'package:flame/components.dart';
+import 'package:flame/events.dart';
+import 'package:flame/game.dart';
+import 'package:flutter/material.dart';
 
-import '../../../components/win/win_overlay.dart';
-import '../../bubble/presentation/widgets/knowledge_bubble.dart';
+/// Coordonne les règles d'une partie et les composants Flame qui la composent.
+class BubbleGame extends FlameGame
+    with TapCallbacks
+    implements KnowledgeBubbleHost {
+  /// Durée maximale de dispersion des bulles après une bonne réponse.
+  static const knowledgeScatterDuration = 4.0;
 
-class BubbleGame extends FlameGame with DragCallbacks {
-  static const backgroundAsset = 'Bg_water.webp';
-  static const int targetCount = 5;
+  /// Nom de l'overlay Flutter contenant le personnage et sa jauge.
+  static const curioOverlay = 'curio';
+  static const victoryOverlay = 'victory';
+  static const gameOverOverlay = 'game_over';
 
+  /// Donne à l'overlay un moyen de contrôler le compte à rebours.
+  final gaugeKey = GlobalKey<CharacterTimeGaugeState>();
+
+  /// Source aléatoire partagée pour les positions, couleurs et trajectoires.
   final _random = Random();
 
-  late final SpriteComponent _background;
-  late LaserBeam _laser;
-  late final TextComponent _hud;
-  static const List<Map<String, dynamic>> data = [
-    {
-      "question": "What does 'hello' mean in French?",
-      "answer": "Bonjour",
-      "displayed_choice": [
-        "Bonjour",
-        "Au revoir",
-        "À très bientôt",
-        "Oke",
-        "Beaucoup",
-      ],
-      "knowledge":[
-        "french",
-        "English",
-        "Pananme",
-        "Beaugosse"
-      ]
-    },
-    {
-      "question": "What does 'goodbye' mean in French?",
-      "answer": "Au revoir",
-      "displayed_choice": [
-        "Bonjour",
-        "Merci",
-        "Au revoir",
-        "Bonsoir",
-        "Beaucoup",
-      ],
-      "knowledge":[
-        "french",
-        "English",
-        "Pananme",
-        "Beaugosse"
-      ]
-    },
-    {
-      "question": "What does 'thank you' mean in French?",
-      "answer": "Merci",
-      "displayed_choice": [
-        "Pardon",
-        "Merci",
-        "Bonjour",
-        "Salut",
-        "Beaucoup",
-      ],
-      "knowledge":[
-        "french",
-        "English",
-        "Pananme",
-        "Beaugosse"
-      ]
-    },
-  ];
+  /// Faisceau actif, remplacé au début de chaque manche.
+  LaserBeam? _laser;
 
-  WinOverlay? _overlay;
-  int _popped = 0;
+  /// État de progression de la question et des bulles de connaissance.
   bool _won = false;
+  bool _gameOver = false;
+  bool _victoryOverlayShown = false;
   late String _currentAnswer;
-  int _currentQuestionId = 0;
+  late int _currentQuestionId;
+  @override
   bool isFrozen = false;
+  @override
   double elapsedFreezeTime = 0.0;
-  int _activeKnowledgeBubbles = 0;
-  bool _waitingForKnowledgeBubblesToLeave = false;
 
+  @override
+  double get bubbleRespawnY => _laser?.bubbleRespawnY ?? size.y;
+
+  /// Met à jour les durées de gel puis résout les collisions des bulles.
   @override
   void update(double dt) {
     super.update(dt);
     if (isFrozen) {
       elapsedFreezeTime += dt;
+      if (_won && elapsedFreezeTime >= knowledgeScatterDuration) {
+        _showVictoryOverlay();
+      }
     }
     _handleBubbleCollisions();
   }
 
+  /// Vérifie chaque paire de bulles visibles et leur applique une collision.
   void _handleBubbleCollisions() {
     final allBubbles = <PositionComponent>[
-      ...children.whereType<Bubble>().where((b) => b.isCollisionActive),
-      ...children.whereType<KnowledgeBubbleComponent>().where((k) => k.isCollisionActive),
+      ...children.whereType<Bubble>().where(
+        (bubble) => bubble.isCollisionActive,
+      ),
+      ...children.whereType<KnowledgeBubbleComponent>().where(
+        (bubble) => bubble.isCollisionActive,
+      ),
     ];
 
-    const double padding = 6.0;
+    const padding = 6.0;
+    for (var first = 0; first < allBubbles.length; first++) {
+      for (var second = first + 1; second < allBubbles.length; second++) {
+        final bubble = allBubbles[first];
+        final other = allBubbles[second];
 
-    for (var i = 0; i < allBubbles.length; i++) {
-      for (var j = i + 1; j < allBubbles.length; j++) {
-        final a = allBubbles[i];
-        final b = allBubbles[j];
-
-        if (a is Bubble) {
-          a.checkAndResolveCollision(b, padding: padding);
-        } else if (a is KnowledgeBubbleComponent) {
-          a.checkAndResolveCollision(b, padding: padding);
+        if (bubble is Bubble) {
+          bubble.checkAndResolveCollision(other, padding: padding);
+        } else if (bubble is KnowledgeBubbleComponent) {
+          bubble.checkAndResolveCollision(other, padding: padding);
         }
       }
     }
   }
 
-  void onKnowledgeBubbleRemoved() {
-    if (!_waitingForKnowledgeBubblesToLeave) return;
-    _activeKnowledgeBubbles--;
-    if (_activeKnowledgeBubbles <= 0) {
-      _waitingForKnowledgeBubblesToLeave = false;
-      isFrozen = false;
-      restart();
-    }
+  /// Affiche l'échec uniquement si la bonne bulle n'a pas déjà été touchée.
+  void onTimeUp() {
+    if (_won || _gameOver) return;
+
+    _gameOver = true;
+    overlays.add(gameOverOverlay);
+    pauseEngine();
   }
 
-  @override
-  Color backgroundColor() => const Color(0xFF1E1E1E);
+  /// Affiche une seule fois le résultat quand le délai de dispersion est écoulé.
+  void _showVictoryOverlay() {
+    if (_victoryOverlayShown || _gameOver) return;
 
+    _victoryOverlayShown = true;
+    overlays.add(victoryOverlay);
+    pauseEngine();
+  }
+
+  /// Laisse le fond Flutter visible derrière le canvas du jeu.
+  @override
+  Color backgroundColor() => Colors.transparent;
+
+  /// Active l'overlay Flutter et prépare la première question.
   @override
   Future<void> onLoad() async {
-    final gameSize = size.x > 0 ? size : Vector2(800, 600);
-
-    _background = SpriteComponent(
-      sprite: await loadSprite(backgroundAsset),
-      size: gameSize,
-      priority: -1,
-    );
-    await add(_background);
-
-    _hud = TextComponent(
-      text: '0 / $targetCount',
-      position: Vector2(16, 40),
-      priority: 50,
-      textRenderer: TextPaint(
-        style: const TextStyle(
-          color: Colors.white,
-          fontSize: 24,
-          fontWeight: FontWeight.bold,
-        ),
-      ),
-    );
-    await add(_hud);
-
+    overlays.add(curioOverlay);
+    _selectRandomQuestion();
     await _startRound();
   }
 
+  /// Choisit une question aléatoire, en excluant la précédente si possible.
+  void _selectRandomQuestion({int? excluding}) {
+    final questionCount = GameQuestions.all.length;
+    if (questionCount <= 1) {
+      _currentQuestionId = 0;
+      return;
+    }
+
+    final candidates = List<int>.generate(questionCount, (index) => index)
+      ..remove(excluding);
+    _currentQuestionId = candidates[_random.nextInt(candidates.length)];
+  }
+
+  /// Installe le laser et génère les bulles de réponse de la question courante.
   Future<void> _startRound() async {
     final gameSize = size.x > 0 ? size : Vector2(800, 600);
-    final questionData = data[_currentQuestionId];
-    final questionText = questionData["question"] as String;
-    _currentAnswer = questionData["answer"] as String;
+    final question = GameQuestions.all[_currentQuestionId];
+    _currentAnswer = question.answer;
 
-    _laser = LaserBeam(
-      origin: Vector2(gameSize.x / 2, 700),
-      targetPosition: Vector2(gameSize.x / 2, 600),
-      label: questionText,
+    final laser = LaserBeam(
+      origin: Vector2(gameSize.x / 2, gameSize.y * 0.76),
+      targetPosition: Vector2(gameSize.x / 2, gameSize.y * 0.58),
+      label: question.prompt,
+      labelColor: Colors.primaries[_random.nextInt(Colors.primaries.length)],
     );
-    await add(_laser);
-    final random = Random();
+    _laser = laser;
+    laser.fitToViewport(gameSize);
+    await add(laser);
 
-    for (final choice in data[_currentQuestionId]["displayed_choice"]) {
-      final color = Colors.primaries[random.nextInt(Colors.primaries.length)];
-
+    for (final choice in question.choices) {
+      final color = Colors.primaries[_random.nextInt(Colors.primaries.length)];
       await _spawn(
         choice,
         BubbleDirection.bottomToTop,
@@ -187,136 +160,77 @@ class BubbleGame extends FlameGame with DragCallbacks {
     }
   }
 
+  /// Crée une bulle et la relie à la réponse attendue pour cette manche.
   Future<void> _spawn(
     String text,
-    BubbleDirection dir,
+    BubbleDirection direction,
     double speed,
     BubbleShape shape,
-    Size size,
+    Size bubbleSize,
     Color color,
   ) async {
-    final pos = _randomPosition(size.width / 2, size.height / 2);
+    final position = _randomPosition(
+      bubbleSize.width / 2,
+      bubbleSize.height / 2,
+    );
     return add(
       Bubble(
-        position: pos,
+        position: position,
         textColor: Colors.white,
         random: _random,
-
-        // Définit si cette bulle peut éclater définitivement (si c'est la bonne réponse)
-        canPop: (t) => t == _currentAnswer,
-
-        // Appelée lorsque la bulle est touchée et éclate
-        onTargetPopped: (popPos) {
-          if (text == _currentAnswer) {
-            _startFreezeOnWin(popPos);
-          } else {
-            onTrueBubblePopped();
-          }
-        },
-
+        canPop: (value) => value == _currentAnswer,
+        onTargetImpact: _startFreezeOnWin,
         config: BubbleConfig(
           text: text,
-          direction: dir,
+          direction: direction,
           speed: speed,
-          style: BubbleStyle(
-            shape: shape,
-            size: size,
-            baseColor: color,
-          ),
+          style: BubbleStyle(shape: shape, size: bubbleSize, baseColor: color),
         ),
       ),
     );
   }
 
-  Vector2 _randomPosition(double halfW, double halfH) {
+  /// Choisit une position aléatoire en gardant toute la bulle dans le canvas.
+  Vector2 _randomPosition(double halfWidth, double halfHeight) {
     final gameSize = size.x > 0 ? size : Vector2(800, 600);
-    final availableWidth = max(0.0, gameSize.x - 2 * halfW);
-    final availableHeight = max(0.0, gameSize.y - 2 * halfH);
+    final availableWidth = max(0.0, gameSize.x - 2 * halfWidth);
+    final availableHeight = max(0.0, gameSize.y - 2 * halfHeight);
 
     return Vector2(
       availableWidth == 0
           ? gameSize.x / 2
-          : halfW + _random.nextDouble() * availableWidth,
+          : halfWidth + _random.nextDouble() * availableWidth,
       availableHeight == 0
           ? gameSize.y / 2
-          : halfH + _random.nextDouble() * availableHeight,
+          : halfHeight + _random.nextDouble() * availableHeight,
     );
   }
 
-  /// Appelée par une vraie bulle au moment où elle éclate.
-  void onTrueBubblePopped() {
-    if (_won) return;
-
-    _popped++;
-    _hud.text = '$_popped / $targetCount';
-
-    if (_popped >= targetCount) {
-      _win();
-      return;
-    }
-
-    // Remplace la bulle vraie supprimée.
-    _spawn(
-      'Vrai',
-      BubbleDirection.values[
-        _random.nextInt(BubbleDirection.values.length)
-      ],
-      14 + _random.nextInt(10).toDouble(),
-      BubbleShape.sphere,
-      const Size(120, 120),
-      Colors.lightBlueAccent,
-    );
-  }
-
-  void _win() {
-    if (_won) return;
-
-    _won = true;
-    _laser.removeFromParent();
-  }
-
+  /// Arrête le compte à rebours et lance l'animation de victoire.
   void _startFreezeOnWin(Vector2 popPosition) {
-    if (_won) return;
+    if (_won || _gameOver) return;
 
     _won = true;
     isFrozen = true;
+    _victoryOverlayShown = false;
     elapsedFreezeTime = 0.0;
-
-    // 1) Génère les bulles de connaissances pour la question actuelle qui vient d'être résolue
-    _spawnKnowledgePopBubbles(popPosition, _currentQuestionId);
-
-    // 2) Avance à la question suivante pour la manche à venir
-    _currentQuestionId = (_currentQuestionId + 1) % data.length;
-    final nextQuestionData = data[_currentQuestionId];
-    final nextQuestionText = nextQuestionData["question"] as String;
-    _currentAnswer = nextQuestionData["answer"] as String;
-
-    // 3) Met à jour le texte du laser immédiatement
-    _laser.updateLabelText(nextQuestionText);
+    gaugeKey.currentState?.pause();
+    _spawnKnowledgeBubbles(
+      popPosition,
+      GameQuestions.all[_currentQuestionId].knowledge,
+    );
   }
 
-  void _spawnKnowledgePopBubbles(Vector2 origin, int questionId) {
-    final rawKnowledge = data[questionId]["knowledge"];
-    final List<String> knowledgeList = rawKnowledge is List
-        ? rawKnowledge.map((e) => e.toString()).toList()
-        : ["knowledge"];
-
-    _activeKnowledgeBubbles = knowledgeList.length;
-    _waitingForKnowledgeBubblesToLeave = true;
-
-    final random = Random();
-
-    final style = BubbleStyle(
-      shape: BubbleShape.sphere,
-      size: Size(
-        70 + random.nextInt(61).toDouble(), // 100 à 160
-        70 + random.nextInt(41).toDouble(), // 100 à 140
-      ),
-      baseColor: Colors.purpleAccent,
-    );
-
-    for (var i = 0; i < knowledgeList.length; i++) {
-      final angle = (i / knowledgeList.length) * 2 * pi;
+  /// Fait partir radialement les notions liées à la question qui vient d'être résolue.
+  void _spawnKnowledgeBubbles(Vector2 origin, List<String> knowledge) {
+    for (var index = 0; index < knowledge.length; index++) {
+      final angle = (index / knowledge.length) * 2 * pi;
+      final bubbleSize = BubbleTextHelper.bubbleSizeForText(
+        text: knowledge[index],
+        maxWidth: (size.x > 0 ? size.x * 0.4 : 320)
+            .clamp(110.0, 320.0)
+            .toDouble(),
+      );
       add(
         KnowledgeBubbleComponent(
           position: origin.clone(),
@@ -324,8 +238,12 @@ class BubbleGame extends FlameGame with DragCallbacks {
           random: _random,
           isBurstBubble: true,
           config: BubbleConfig(
-            style: style,
-            text: knowledgeList[i],
+            style: BubbleStyle(
+              shape: BubbleShape.ellipsoid,
+              size: bubbleSize,
+              baseColor: Colors.white,
+            ),
+            text: knowledge[index],
             speed: 50 + _random.nextDouble() * 30,
             customDirection: Vector2(cos(angle), sin(angle)),
             waveAmplitude: 0,
@@ -335,9 +253,11 @@ class BubbleGame extends FlameGame with DragCallbacks {
     }
   }
 
+  /// Supprime les entités de la manche précédente et installe la suivante.
   void restart() {
-    _overlay?.removeFromParent();
-    _overlay = null;
+    final previousQuestionId = _currentQuestionId;
+    overlays.remove(victoryOverlay);
+    overlays.remove(gameOverOverlay);
 
     for (final child in children.toList()) {
       if (child is Bubble || child is KnowledgeBubbleComponent) {
@@ -345,36 +265,33 @@ class BubbleGame extends FlameGame with DragCallbacks {
       }
     }
 
-    _laser.removeFromParent();
-
-    _popped = 0;
+    _laser?.removeFromParent();
+    _laser = null;
     _won = false;
+    _gameOver = false;
+    _victoryOverlayShown = false;
     isFrozen = false;
     elapsedFreezeTime = 0.0;
-    _waitingForKnowledgeBubblesToLeave = false;
-    _activeKnowledgeBubbles = 0;
-    _hud.text = '0 / $targetCount';
-
+    _selectRandomQuestion(excluding: previousQuestionId);
+    gaugeKey.currentState?.restart();
+    resumeEngine();
     _startRound();
   }
 
+  /// Replace le laser lorsque l'écran change de taille.
   @override
   void onGameResize(Vector2 size) {
     super.onGameResize(size);
-
-    if (isLoaded) {
-      _background.size = size;
-      _laser.position.x = size.x / 2;
-      _laser.updateTarget(Vector2(size.x / 2, 600));
-    }
+    _laser?.fitToViewport(size);
   }
 
+  /// Tire vers le point touché, sauf pendant une transition de manche.
   @override
-  void onDragUpdate(DragUpdateEvent event) {
-    super.onDragUpdate(event);
+  void onTapDown(TapDownEvent event) {
+    super.onTapDown(event);
+    final laser = _laser;
+    if (_won || isFrozen || laser == null) return;
 
-    if (_won || isFrozen) return;
-
-    _laser.updateTarget(event.localEndPosition);
+    laser.fireAt(event.localPosition);
   }
 }

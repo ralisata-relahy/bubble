@@ -1,5 +1,5 @@
 name: bubble
-description: "A new Flutter project."
+description: "A new Game project."
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev
@@ -39,6 +39,10 @@ dependencies:
   floating_bubbles: ^2.6.2
   flame_audio: ^2.12.2
   vibration: ^3.2.1
+  audioplayers: ^6.8.1
+  flutter_soloud: ^3.1.0
+  bubble_component:
+    path: lib/features/knowledge_bubble
 
 dev_dependencies:
   flutter_test:
@@ -71,6 +75,11 @@ flutter:
     - assets/audio/bouble_pop.mp3
     - assets/audio/false_pop.mp3
     - assets/audio/e-ho.mp3
+    - assets/audio/angry.mp3
+    - assets/audio/happy.mp3
+    - assets/audio/sad.mp3
+    - assets/audio/surprised.mp3
+    - assets/images/bg_stars.jpeg
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images
