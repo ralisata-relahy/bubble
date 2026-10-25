@@ -81,13 +81,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.1.2"
-  bubble_component:
-    dependency: "direct main"
-    description:
-      path: "lib/features/knowledge_bubble"
-      relative: true
-    source: path
-    version: "1.0.0"
   characters:
     dependency: transitive
     description:
@@ -200,22 +193,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.38.2"
-  flame_audio:
-    dependency: "direct main"
-    description:
-      name: flame_audio
-      sha256: f88692222444231cdb380af8ca087b521da26773c1bb4d1da33a24c953d3b3ea
-      url: "https://pub.dev"
-    source: hosted
-    version: "2.12.2"
-  floating_bubbles:
-    dependency: "direct main"
-    description:
-      name: floating_bubbles
-      sha256: "4f39efc44eb5777861e346aa747950b605c2ba538ec0c67e9a2219330191f533"
-      url: "https://pub.dev"
-    source: hosted
-    version: "2.6.2"
   flutter:
     dependency: "direct main"
     description: flutter
@@ -479,22 +456,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.1.1"
-  sa4_migration_kit:
-    dependency: transitive
-    description:
-      name: sa4_migration_kit
-      sha256: "635df6de79b8b396705a630ba2d7bc7a2a1df4f69b4bfc10aa104290f6fdca85"
-      url: "https://pub.dev"
-    source: hosted
-    version: "1.0.0"
-  simple_animations:
-    dependency: transitive
-    description:
-      name: simple_animations
-      sha256: "0e90dc63183212b2c47c7969bd77cf7648be9f62c9461837ae4cbe8a62ff3369"
-      url: "https://pub.dev"
-    source: hosted
-    version: "5.3.0"
   sky_engine:
     dependency: transitive
     description: flutter

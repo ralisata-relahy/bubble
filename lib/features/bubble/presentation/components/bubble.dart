@@ -7,25 +7,27 @@ import 'dart:ui';
 import 'package:bubble/audio_generation/sound_effect.dart';
 import 'package:flame/components.dart';
 import 'package:flame/game.dart';
-import 'package:flame_audio/flame_audio.dart';
 import 'package:flutter/material.dart'
     show Canvas, FontWeight, Colors, RadialGradient;
 import 'package:flutter/src/painting/text_style.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:vibration/vibration.dart';
 
-import 'package:bubble/features/bubble/models/bubble_config.dart';
 import 'package:bubble/core/contracts/knowledge_bubble_host.dart';
-import 'package:bubble/features/bubble/presentation/rendering/bubble_renderer.dart';
 import 'package:bubble/core/contracts/laser_target.dart';
-import 'package:bubble/features/bubble/presentation/widgets/knowledge_bubble.dart';
+import 'package:bubble/core/physics/bubble_collision_resolver.dart';
+import 'package:bubble/features/bubble/models/bubble_config.dart';
+import 'package:bubble/features/bubble/presentation/rendering/bubble_renderer.dart';
 
 import 'bubble_label.dart';
 
+/// Composant principal representant une bulle flottante dans le moteur de jeu Flame.
+/// Coordonne la cinematique ondulatoire, la resolution elastique des collisions,
+/// les effets de chauffe et d'explosion laser, ainsi que le rendu graphique.
 class Bubble extends PositionComponent
     with HasGameReference<FlameGame>
-    implements LaserTarget {
-  /// Crée une bulle à la position et avec le style demandés.
+    implements LaserTarget, BubblePhysicsBody {
+  /// Cree une bulle a la position et avec la configuration specifiees.
   Bubble({
     required Vector2 position,
     this.config = const BubbleConfig(),
@@ -33,6 +35,7 @@ class Bubble extends PositionComponent
     this.canPop = _defaultCanPop,
     this.isBurstBubble = false,
     this.onTargetImpact,
+    this.onWrongImpact,
     Random? random,
   }) : _random = random ?? Random(),
        super(
@@ -41,30 +44,38 @@ class Bubble extends PositionComponent
          anchor: Anchor.center,
        );
 
+  /// Couleur du texte contenu dans la bulle.
   final Color textColor;
+
+  /// Parametres de style, forme et trajectoire.
   final BubbleConfig config;
 
-  /// Règle: reçoit le texte de la bulle, renvoie true si elle est "vraie"
-  /// (elle explose et disparaît). Sinon elle explose puis revient en rouge.
+  /// Predicat verifiant si le texte de la bulle correspond a la reponse attendue.
   final bool Function(String text) canPop;
+
+  /// Marqueur indiquant si la bulle est issue d'une explosion de savoir.
   final bool isBurstBubble;
 
-  /// Appelé dès que le laser touche la bonne bulle.
+  /// Callback declenche lors de l'impact victorieux d'un laser sur la bulle cible.
   final void Function(Vector2 pos)? onTargetImpact;
 
-  /// Détermine si le texte désigne une bulle qui disparaît définitivement.
+  /// Callback declenche lorsque le laser touche une bulle qui n'est pas la bonne reponse.
+  final void Function()? onWrongImpact;
+
+  /// Predicat par defaut validant les reponses vraies.
   static bool _defaultCanPop(String t) {
     final s = t.trim().toLowerCase();
     return s == 'vrai' || s == 'vraie';
   }
 
+  /// Generateur aleatoire utilise pour la dispersion des particules et la phase.
   final Random _random;
 
-  /// Indique si le texte actuel fait de cette bulle une cible correcte.
+  /// Indique si la bulle est la reponse correcte attendue par la manche.
   bool get isTarget => canPop(_text);
 
-  // ── Texte (conservé même quand le label est retiré pendant l'explosion) ──
-  String _text = '';
+  // ── Proprietes de mouvement et cinematique ──
+  late String _text = config.text;
   BubbleLabel? _label;
   late BubbleRenderer _renderer;
   late Vector2 _dir;
@@ -74,115 +85,73 @@ class Bubble extends PositionComponent
   double _squash = 0;
   double _rendererAcc = 0;
 
+  // ── Implementation du contrat BubblePhysicsBody ──
+  @override
   Vector2 get moveDir => _dir;
+
+  @override
   Vector2 get centerBase => _centerBase;
+
+  @override
   Vector2 get movePerp => _perp;
 
+  @override
+  double get speed => config.speed;
+
+  @override
+  double get waveAmplitude => config.waveAmplitude;
+
+  @override
+  double get waveFrequency => config.waveFrequency;
+
+  @override
+  double get waveTime => _t;
+
+  @override
+  set waveTime(double value) => _t = value;
+
+  @override
   bool get isCollisionActive => !_isPopping && !_isHidden && _opacity >= 0.5;
 
+  @override
   double get collisionRadius => (size.x + size.y) / 4;
 
+  /// Resout la collision elastique entre deux bulles grace au module physique partage.
   void checkAndResolveCollision(dynamic other, {double padding = 6.0}) {
-    if (!isCollisionActive || other == null) return;
-
-    double otherRadius = 0;
-    Vector2? otherPos;
-    Vector2? otherDir;
-    Vector2? otherCenterBase;
-    Vector2? otherPerp;
-
-    if (other is Bubble) {
-      if (!other.isCollisionActive) return;
-      otherRadius = other.collisionRadius;
-      otherPos = other.position;
-      otherDir = other.moveDir;
-      otherCenterBase = other.centerBase;
-      otherPerp = other.movePerp;
-    } else if (other is KnowledgeBubbleComponent) {
-      if (!other.isCollisionActive) return;
-      otherRadius = other.collisionRadius;
-      otherPos = other.position;
-      otherDir = other.moveDir;
-      otherCenterBase = other.centerBase;
-      otherPerp = other.movePerp;
-    } else {
-      return;
-    }
-
-    final delta = otherPos - position;
-    var distance = delta.length;
-    final minDistance = collisionRadius + otherRadius + padding;
-
-    if (distance < minDistance) {
-      Vector2 normal;
-      if (distance < 0.001) {
-        final dirDiff = _dir - otherDir;
-        normal = dirDiff.length > 0.001 ? dirDiff.normalized() : Vector2(1, 0);
-        distance = 0.001;
-      } else {
-        normal = delta / distance;
-      }
-
-      final overlap = minDistance - distance;
-
-      // 1) Écarte légèrement les deux bulles pour maintenir le padding sans chevauchement
-      final separation = normal * (overlap / 2);
-      position.sub(separation);
-      _centerBase.sub(separation);
-
-      otherPos.add(separation);
-      otherCenterBase.add(separation);
-
-      // 2) Rebond élastique : échange des composantes de vitesse le long de la normale
-      final vaNormal = _dir.dot(normal);
-      final vbNormal = otherDir.dot(normal);
-
-      if (vaNormal - vbNormal > 0) {
-        _dir.add(normal * (vbNormal - vaNormal));
-        otherDir.add(normal * (vaNormal - vbNormal));
-
-        if (_dir.length > 0.001) {
-          _dir.normalize();
-        }
-        if (otherDir.length > 0.001) {
-          otherDir.normalize();
-        }
-
-        _perp.setValues(-_dir.y, _dir.x);
-        otherPerp.setValues(-otherDir.y, otherDir.x);
-      }
+    if (other is BubblePhysicsBody) {
+      BubbleCollisionResolver.resolve(this, other, padding: padding);
     }
   }
 
-  // ── Rouge ──
-  double _redness = 0; // 0 = normal, 1 = tout rouge
+  // ── Etat rouge (reponse incorrecte) ──
+  double _redness = 0;
   bool _isRed = false;
   static const Color _redColor = Color(0xFFFF1E1E);
 
-  /// Renvoie la moitié de la largeur de la bulle.
+  /// Demi-largeur de la bulle.
   double get _halfW => size.x / 2;
 
-  /// Renvoie la moitié de la hauteur de la bulle.
+  /// Demi-hauteur de la bulle.
   double get _halfH => size.y / 2;
 
-  // ── Laser (chauffe) ──
+  // ── Etat d'impact laser ──
   Offset _hitNormal = Offset.zero;
   double _heatIntensity = 0;
   double _hitTimeToLive = 0;
   double _inflationScale = 1.0;
 
-  // ── Explosion ──
+  // ── Etat d'animation d'explosion ──
   bool _isPopping = false;
   double _popProgress = 0.0;
   static const double _popDuration = 0.3;
   static const double _holeDuration = 0.1;
   static const double _holeFrac = _holeDuration / _popDuration;
 
-  /// Délai d'attente après l'explosion avant le retour d'une bulle fausse.
+  /// Delai d'attente avant la reapparition d'une mauvaise bulle en rouge.
   static const double _returnDelay = 0.5;
   bool _returnsAfterPop = false;
 
-  // ── Invisible en attendant de revenir ──
+  // ── Etat de masquage temporaire ──
   bool _isHidden = false;
   double _hiddenTimer = 0;
   double _opacity = 1.0;
@@ -191,11 +160,11 @@ class Bubble extends PositionComponent
   double _popMaxHole = 1.0;
   final List<_PopParticle> _particles = [];
 
-  /// Calcule le rayon du trou selon l'avancement de l'explosion.
+  /// Calcule le rayon actuel du trou d'eclatement.
   double get _holeRadius =>
       _popMaxHole * (_popProgress / _holeFrac).clamp(0.0, 1.0);
 
-  // ── Objets de dessin réutilisés (zéro allocation par frame) ──
+  // ── Objets de dessin reutilises (zero allocation par trame) ──
   late final Rect _layerBounds = Rect.fromLTWH(
     -size.x * 0.35,
     -size.y * 0.35,
@@ -217,13 +186,11 @@ class Bubble extends PositionComponent
     ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2);
   static const MaskFilter _bigDropBlur = MaskFilter.blur(BlurStyle.normal, 1.0);
 
-  // ── Effet de chauffe (objets réutilisés) ──
+  // ── Effet de chauffe thermique ──
   final Paint _heatGlowPaint = Paint()
     ..blendMode = BlendMode.plus
     ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8);
 
-  // Shader unitaire (rayon 1, centré en 0,0), créé UNE seule fois.
-  // On le déplace/agrandit avec le canvas au lieu de le recréer.
   late final Shader _heatShader = const RadialGradient(
     colors: [Colors.white, Color(0xB3FF2A2A), Color(0x00FF2A2A)],
     stops: [0, 0.4, 1],
@@ -235,9 +202,8 @@ class Bubble extends PositionComponent
   final List<double> _tintMatrix = List<double>.filled(20, 0);
   double _lastTintRed = -1;
   double _lastTintOpacity = -1;
-  // ───────────────────────── Texte ─────────────────────────
 
-  // ── Style du label (créé une seule fois) ──
+  // ── Style typographique du label ──
   late final TextStyle _labelStyle = () {
     final shortSide = min(size.x, size.y);
     return GoogleFonts.poppins(
@@ -253,28 +219,29 @@ class Bubble extends PositionComponent
       ],
     );
   }();
-  // ── Vibration: vérifiée une seule fois pour toutes les bulles ──
+
+  // ── Prise en charge de la vibration haptique ──
   static bool _canVibrate = false;
   static bool _vibrationChecked = false;
 
-  /// Vérifie une seule fois si l'appareil prend en charge la vibration.
+  /// Verifie une seule fois la disponibilite du vibreur.
   static Future<void> _checkVibration() async {
     if (_vibrationChecked) return;
     _vibrationChecked = true;
     _canVibrate = await Vibration.hasVibrator();
   }
 
-  /// Texte vide = pas de label.
+  /// Met a jour le texte affiche.
   set text(String value) {
     _text = value;
-    if (_isPopping || _isHidden) return; // sera reconstruit au retour
+    if (_isPopping || _isHidden) return;
     _syncLabel();
   }
 
-  /// Renvoie le texte affiché dans la bulle.
+  /// Texte affiche actuellement.
   String get text => _text;
 
-  /// Crée, met à jour ou retire le label selon le texte actuel.
+  /// Synchronise l'entite enfant BubbleLabel avec le texte courant.
   void _syncLabel() {
     final label = _label;
     if (_text.isEmpty) {
@@ -288,7 +255,7 @@ class Bubble extends PositionComponent
     }
   }
 
-  /// Joue le son correspondant au résultat et vibre pour une réponse fausse.
+  /// Declenche l'effet sonore approprie et une vibration en cas d'erreur.
   void playEffect() {
     if (isTarget) {
       SoundEffects.play(Sfx.beamCorrect);
@@ -301,13 +268,20 @@ class Bubble extends PositionComponent
 
   // ───────────────────────── Explosion ─────────────────────────
 
-  /// Lance l'explosion et prépare ses particules.
+  /// Declenche la sequence d'explosion et prepare les gouttelettes.
   void pop() {
     if (_isPopping || _isHidden) return;
 
-    // Mémorise si la bulle doit disparaître ou revenir après l'explosion.
     final targetWasHit = isTarget;
     _returnsAfterPop = !targetWasHit;
+
+    if (targetWasHit) {
+      // Fige immediatement le jeu et le timer des le premier contact victorieux
+      onTargetImpact?.call(position.clone());
+    } else {
+      // Penalise le joueur pour une mauvaise reponse
+      onWrongImpact?.call();
+    }
 
     playEffect();
     _isPopping = true;
@@ -330,7 +304,6 @@ class Bubble extends PositionComponent
 
     final dropColor = _isRed ? const Color(0xFFFF3B3B) : config.style.baseColor;
 
-    // Moins de particules = beaucoup moins de travail par frame
     _particles.clear();
     final count = 22 + _random.nextInt(7);
     for (var i = 0; i < count; i++) {
@@ -368,10 +341,9 @@ class Bubble extends PositionComponent
     }
   }
 
-  /// Fin de l'animation: vraie = supprimée, fausse = invisible en attendant de revenir.
+  /// Finalise l'explosion : suppression si cible victorieuse, ou preparation au retour si erreur.
   void _finishPop() {
     if (!_returnsAfterPop) {
-      onTargetImpact?.call(position.clone());
       removeFromParent();
       return;
     }
@@ -386,7 +358,7 @@ class Bubble extends PositionComponent
     _hiddenTimer = _returnDelay;
   }
 
-  /// Fait réapparaître une bulle fausse en rouge et complètement opaque.
+  /// Reinitialise la bulle apres l'echec en l'affichant en rouge opaque.
   void _comeBack() {
     _isHidden = false;
     _isRed = true;
@@ -403,14 +375,14 @@ class Bubble extends PositionComponent
     _syncLabel();
   }
 
-  // ───────────────────────── Laser ─────────────────────────
+  // ───────────────────────── Interactions Laser ─────────────────────────
 
-  /// Indique si la bulle est visible et prête à réagir à un impact du laser.
+  /// Verifie si la bulle est apte a recevoir un tir laser.
   @override
   bool get canReceiveLaserHit =>
       !isBurstBubble && !_isPopping && !_isHidden && _opacity >= 0.8;
 
-  /// Indique si la pointe du laser se trouve à l'intérieur de la bulle.
+  /// Determine si un point se situe geometriquement dans l'ellipse de la bulle.
   @override
   bool containsLaserPoint(Vector2 point) {
     if (isBurstBubble) return false;
@@ -420,7 +392,7 @@ class Bubble extends PositionComponent
     return dx * dx + dy * dy <= 1;
   }
 
-  /// Enregistre l'impact du laser et déclenche l'explosion.
+  /// Enregistre l'impact thermique du faisceau laser et declenche l'explosion.
   @override
   void onLaserHit(Vector2 point, double dt) {
     if (isBurstBubble) return;
@@ -432,18 +404,15 @@ class Bubble extends PositionComponent
       (point.y - center.y) / (size.y / 2),
     );
 
-    // Vrai ou faux: dans les deux cas ça explose.
-    // La différence se fait à la fin de l'animation (_finishPop).
     pop();
   }
 
   // ───────────────────────── Cycle de vie ─────────────────────────
 
-  /// Charge les sons et initialise l'affichage et le mouvement de la bulle.
+  /// Initialise les composants graphiques et la trajectoire lors du chargement.
   @override
   Future<void> onLoad() async {
-    await FlameAudio.audioCache.loadAll(['bouble_pop.mp3', 'e-ho.mp3']);
-    _checkVibration(); // pas de await: on ne bloque pas le chargement
+    _checkVibration();
     _renderer = BubbleRenderer(config.style);
     _dir = config.directionVector;
     _perp = Vector2(-_dir.y, _dir.x);
@@ -459,7 +428,7 @@ class Bubble extends PositionComponent
     await add(_BubbleGloss());
   }
 
-  /// Construit le label en tenant compte de la forme et du style de la bulle.
+  /// Fabrique le BubbleLabel adapte a la geometrie et au style de la bulle.
   BubbleLabel _buildLabel(String value) {
     return BubbleLabel(
       text: value,
@@ -472,7 +441,7 @@ class Bubble extends PositionComponent
     );
   }
 
-  /// Met à jour le mouvement, l'explosion, la visibilité et les effets.
+  /// Met a jour la cinematique, l'explosion, la dissipation thermique et le respawn.
   @override
   void update(double dt) {
     super.update(dt);
@@ -484,24 +453,24 @@ class Bubble extends PositionComponent
       return;
     }
 
-    // 1) Explosion en cours
+    // 1) Animation d'explosion active.
     if (_isPopping) {
       _popProgress += dt / _popDuration;
       if (_popProgress >= 1.0) _finishPop();
       return;
     }
 
-    // 2) Invisible, en attente de revenir (bulle fausse)
+    // 2) Etat invisible temporaire en attente de retour.
     if (_isHidden) {
       _hiddenTimer -= dt;
       if (_hiddenTimer <= 0) _comeBack();
       return;
     }
 
-    // 3) Normal
+    // 3) Deplacement regulier.
     _t += dt;
     _drift(dt);
-    keepAboveRespawnLine();
+    keepWithinBounds();
 
     _rendererAcc += dt;
     if (_rendererAcc >= 1 / 30) {
@@ -510,6 +479,7 @@ class Bubble extends PositionComponent
     }
     _breathe();
 
+    // Dissipation thermique apres un contact laser.
     if (_hitTimeToLive > 0) {
       _hitTimeToLive -= dt;
     } else {
@@ -521,16 +491,13 @@ class Bubble extends PositionComponent
         ? math.min(1.0, _redness + dt * 6.0)
         : math.max(0.0, _redness - dt * 1.5);
 
-    if (_isOffScreen()) {
-      if (isBurstBubble) {
-        removeFromParent();
-      } else {
-        _respawn();
-      }
+    // Les bulles d'eclatement disparaissent hors ecran; les bulles simples rebondissent.
+    if (isBurstBubble && _isOffScreen()) {
+      removeFromParent();
     }
   }
 
-  /// Fait dériver la bulle le long de sa direction avec un mouvement ondulé.
+  /// Calcule la derive principale et l'oscillation transversale douce.
   void _drift(double dt) {
     double speedMultiplier = 1.0;
     final host = game is KnowledgeBubbleHost
@@ -539,9 +506,9 @@ class Bubble extends PositionComponent
     if (isBurstBubble && host?.isFrozen == true) {
       final elapsed = host!.elapsedFreezeTime;
       if (elapsed < 0.78) {
-        speedMultiplier = 2.0; // Plus lent au début (premières 2s)
+        speedMultiplier = 2.0;
       } else if (elapsed < 2) {
-        speedMultiplier = 0.5; // Rapide après 2s
+        speedMultiplier = 0.5;
       } else {
         speedMultiplier = 2.0;
       }
@@ -552,12 +519,22 @@ class Bubble extends PositionComponent
     position.setFrom(_centerBase + wave);
   }
 
-  /// Calcule la déformation périodique de respiration de la bulle.
+  /// Animation de respiration sinusoidale de la bulle.
   void _breathe() {
     _squash = config.breathAmplitude * sin(_t * config.breathSpeed);
   }
 
-  /// Garde la bulle au-dessus de la ligne du laser et la fait rebondir dessus.
+  /// Garde les bulles simples dans l'ecran et les bulles d'eclatement au-dessus du laser.
+  void keepWithinBounds() {
+    if (!isBurstBubble) {
+      _bounceWithinBounds();
+      return;
+    }
+
+    keepAboveRespawnLine();
+  }
+
+  /// Maintient la bulle au-dessus de la ligne du laser avec rebond vers le haut.
   void keepAboveRespawnLine() {
     final host = game is KnowledgeBubbleHost
         ? game as KnowledgeBubbleHost
@@ -575,55 +552,67 @@ class Bubble extends PositionComponent
     }
   }
 
-  /// Indique si la bulle a entièrement quitté les limites de l'écran.
+  void _bounceWithinBounds() {
+    final host = game is KnowledgeBubbleHost
+        ? game as KnowledgeBubbleHost
+        : null;
+    final minX = game.size.x >= size.x ? _halfW : game.size.x / 2;
+    final maxX = game.size.x >= size.x ? game.size.x - _halfW : minX;
+    final bottomBoundary = host?.bubbleRespawnY ?? game.size.y;
+    final fitsVertically = bottomBoundary >= size.y;
+    final minY = fitsVertically ? _halfH : bottomBoundary / 2;
+    final maxY = fitsVertically ? bottomBoundary - _halfH : minY;
+    var directionChanged = false;
+
+    if (position.x < minX) {
+      _centerBase.x += minX - position.x;
+      position.x = minX;
+      if (_dir.x < 0) {
+        _dir.x = -_dir.x;
+        directionChanged = true;
+      }
+    } else if (position.x > maxX) {
+      _centerBase.x += maxX - position.x;
+      position.x = maxX;
+      if (_dir.x > 0) {
+        _dir.x = -_dir.x;
+        directionChanged = true;
+      }
+    }
+
+    if (position.y < minY) {
+      _centerBase.y += minY - position.y;
+      position.y = minY;
+      if (_dir.y < 0) {
+        _dir.y = -_dir.y;
+        directionChanged = true;
+      }
+    } else if (position.y > maxY) {
+      _centerBase.y += maxY - position.y;
+      position.y = maxY;
+      if (_dir.y > 0) {
+        _dir.y = -_dir.y;
+        directionChanged = true;
+      }
+    }
+
+    if (directionChanged) {
+      _perp.setValues(-_dir.y, _dir.x);
+    }
+  }
+
+  /// Verifie si la bulle est entierement sortie de la zone d'affichage.
   bool _isOffScreen() {
     if (_dir.x > 0 && position.x - _halfW > game.size.x) return true;
     if (_dir.x < 0 && position.x + _halfW < 0) return true;
     if (_dir.y > 0 && position.y - _halfH > game.size.y) return true;
-    if (_dir.y < 0 && position.y - (_halfH/2) < 0) return true;
+    if (_dir.y < 0 && position.y - (_halfH / 2) < 0) return true;
     return false;
   }
 
-  /// Replace la bulle au bord de l'écran pour son prochain passage.
-  void _respawn() {
-    double x = position.x;
-    double y = position.y;
+  // ───────────────────────── Rendu Graphique ─────────────────────────
 
-    if (_dir.x > 0) {
-      x = -_halfW;
-      y = _randomYAboveRespawnLine();
-    } else if (_dir.x < 0) {
-      x = game.size.x + _halfW;
-      y = _randomYAboveRespawnLine();
-    }
-
-    if (_dir.y > 0) {
-      y = -_halfH;
-      x = _halfW + _random.nextDouble() * (game.size.x - size.x);
-    } else if (_dir.y < 0) {
-      final host = game is KnowledgeBubbleHost
-          ? game as KnowledgeBubbleHost
-          : null;
-      y = (host?.bubbleRespawnY ?? game.size.y) - _halfH;
-      x = _halfW + _random.nextDouble() * (game.size.x - size.x);
-    }
-
-    _centerBase.setValues(x, y);
-    position.setFrom(_centerBase);
-  }
-
-  double _randomYAboveRespawnLine() {
-    final host = game is KnowledgeBubbleHost
-        ? game as KnowledgeBubbleHost
-        : null;
-    final maxCenterY = (host?.bubbleRespawnY ?? game.size.y) - _halfH;
-    final availableHeight = math.max(0.0, maxCenterY - _halfH);
-    return _halfH + _random.nextDouble() * availableHeight;
-  }
-
-  // ───────────────────────── Rendu ─────────────────────────
-
-  /// Déformation (respiration + gonflement) autour du centre. Sans layer.
+  /// Applique la deformation d'echelle (respiration + gonflement thermique).
   void _applyDeform(Canvas canvas, void Function(Canvas) draw) {
     canvas
       ..save()
@@ -634,7 +623,7 @@ class Bubble extends PositionComponent
     canvas.restore();
   }
 
-  /// Utilisé par le label et le gloss: déformation + fondu (layer seulement si nécessaire).
+  /// Applique la deformation et la transparence pour le label et le gloss.
   void paintDeformed(Canvas canvas, void Function(Canvas) draw) {
     final fading = _opacity < 0.999;
     if (fading) {
@@ -645,7 +634,7 @@ class Bubble extends PositionComponent
     if (fading) canvas.restore();
   }
 
-  /// Dessine [draw] puis efface le trou de rupture (utilisé par le gloss).
+  /// Dessine le contenu puis soustrait le trou circulaire d'explosion.
   void paintPopped(Canvas canvas, void Function(Canvas) draw) {
     canvas.saveLayer(_layerBounds, _plainPaint);
     _applyDeform(canvas, draw);
@@ -653,16 +642,14 @@ class Bubble extends PositionComponent
     canvas.restore();
   }
 
-  /// Corps de la bulle: UN SEUL layer pour teinte rouge + fondu + trou.
-  /// Dessine le corps en appliquant la teinte, le fondu et le trou éventuels.
+  /// Rendu du corps translucide de la bulle avec gestion de teinte et du trou.
   void _paintBody(Canvas canvas, {bool hole = false}) {
-    const tinted = false; // le rouge est maintenant dans le renderer
+    const tinted = false;
     final fading = _opacity < 0.999;
     final layered = tinted || fading || hole;
 
     if (layered) {
       if (tinted || fading) {
-        // On ne reconstruit le filtre que si les valeurs ont changé.
         if (_redness != _lastTintRed || _opacity != _lastTintOpacity) {
           final k = 0.85 * _redness;
           final i = 1 - k;
@@ -680,7 +667,7 @@ class Bubble extends PositionComponent
         }
       } else {
         _layerPaint.colorFilter = null;
-        _lastTintRed = -1; // force la reconstruction au prochain besoin
+        _lastTintRed = -1;
       }
       canvas.saveLayer(_layerBounds, _layerPaint);
     }
@@ -691,13 +678,13 @@ class Bubble extends PositionComponent
     if (layered) canvas.restore();
   }
 
-  /// Dessine le film restant et les particules pendant l'explosion.
+  /// Rendu de la phase d'explosion (film retractile et projection de gouttelettes).
   void _renderPop(Canvas canvas) {
     final p = _popProgress.clamp(0.0, 1.0);
     final shortSide = math.min(size.x, size.y);
     final tHole = (p / _holeFrac).clamp(0.0, 1.0);
 
-    // 1. Film + liseré: seulement tant que le trou n'a pas tout mangé
+    // 1. Film d'eclatement.
     if (tHole < 1.0) {
       _paintBody(canvas, hole: true);
 
@@ -723,7 +710,7 @@ class Bubble extends PositionComponent
       }
     }
 
-    // 2. Gouttelettes (un seul Paint réutilisé, flou seulement sur les grosses)
+    // 2. Gouttelettes projetees.
     final tNow = p * _popDuration;
     final g = 1.4 * shortSide;
     for (final d in _particles) {
@@ -731,7 +718,7 @@ class Bubble extends PositionComponent
       if (tau < 0 || tau > d.life) continue;
 
       final k = tau / d.life;
-      final fade = (1 - k) * math.sqrt(1 - k); // = (1-k)^1.5 sans pow()
+      final fade = (1 - k) * math.sqrt(1 - k);
       final disp = d.speed * shortSide * (1 - math.exp(-d.drag * tau)) / d.drag;
       final pos = d.start + d.dir * disp + Offset(0, 0.5 * g * tau * tau);
       final r = shortSide * d.radius * (1 - 0.5 * k);
@@ -755,7 +742,7 @@ class Bubble extends PositionComponent
     }
   }
 
-  /// Vrai si la bulle (avec une marge pour la déformation) touche l'écran.
+  /// Verifie la visibilite sur l'ecran pour eviter les operations de rendu inutiles.
   bool _isVisibleOnScreen() {
     final mx = _halfW * 1.5;
     final my = _halfH * 1.5;
@@ -765,7 +752,7 @@ class Bubble extends PositionComponent
         position.y - my < game.size.y;
   }
 
-  /// Dessine la bulle, ses effets de chauffe ou son animation d'explosion.
+  /// Dessine la bulle dans son etat courant.
   @override
   void render(Canvas canvas) {
     if (_isHidden || !_isVisibleOnScreen()) return;
@@ -776,6 +763,7 @@ class Bubble extends PositionComponent
 
     _paintBody(canvas);
 
+    // Dessine l'effet de surchauffe lors d'un effleurement laser.
     if (_heatIntensity > 0.01) {
       canvas.save();
       canvas.clipPath(_ovalPath);
@@ -786,12 +774,10 @@ class Bubble extends PositionComponent
       );
       final radius = math.min(size.x, size.y) * (0.3 + 0.2 * _heatIntensity);
 
-      // Halo flou
       _heatGlowPaint.color = const Color(0xFFFF2A2A)
           .withValues(alpha: 0.7 * _heatIntensity);
       canvas.drawCircle(impactPoint, radius * 1.2, _heatGlowPaint);
 
-      // Cœur: le shader unitaire est placé et agrandi via le canvas
       _heatCorePaint.color = Colors.white.withValues(alpha: _heatIntensity);
       canvas
         ..save()
@@ -805,12 +791,10 @@ class Bubble extends PositionComponent
   }
 }
 
-/// Gloss layer: high priority child, drawn after text.
+/// Couche de reflet brillant superieure rendue apres le texte.
 class _BubbleGloss extends PositionComponent with ParentIsA<Bubble> {
-  /// Crée la couche brillante dessinée au-dessus du texte.
   _BubbleGloss() : super(priority: 10);
 
-  /// Dessine le reflet si la bulle est visible et n'est pas en explosion.
   @override
   void render(Canvas canvas) {
     if (parent._isHidden || !parent._isVisibleOnScreen()) return;
@@ -819,8 +803,8 @@ class _BubbleGloss extends PositionComponent with ParentIsA<Bubble> {
   }
 }
 
+/// Description d'une particule generee lors de la rupture de la bulle.
 class _PopParticle {
-  /// Initialise une particule avec ses paramètres de mouvement et d'apparence.
   _PopParticle({
     required this.start,
     required this.dir,
@@ -843,3 +827,4 @@ class _PopParticle {
   final Color color;
   final bool big;
 }
+

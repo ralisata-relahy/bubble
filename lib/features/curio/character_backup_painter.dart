@@ -22,7 +22,19 @@ import 'dart:ui' as ui;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
-enum Mood { happy, excited, surprised, sad, angry, sleepy, love }
+enum Mood {
+  happy,
+  excited,
+  surprised,
+  sad,
+  angry,
+  sleepy,
+  love,
+  stressed,
+  wining,
+  satisfied,
+  disapointed,
+}
 
 // =============================================================================
 // Paramètres d'humeur
@@ -147,6 +159,41 @@ final Map<Mood, MoodParams> _presets = {
     _K.wagAmp: 16,
     _K.wagRate: 3.2,
   }),
+  Mood.stressed: MoodParams._make({
+    _K.lid: 0.16,
+    _K.lidSlant: 0.35,
+    _K.pupil: 0.9,
+    _K.browLift: 5,
+    _K.browTilt: 12,
+    _K.mW: 0.9,
+    _K.mCorner: 370,
+    _K.mTop: 350,
+    _K.mBottom: 405,
+    _K.breathAmp: 0.025,
+    _K.breathRate: 1.4,
+    _K.shake: 1.5,
+    _K.wagAmp: 4,
+    _K.wagRate: 0.8,
+  }),
+  Mood.disapointed: MoodParams._make({
+    _K.lid: 0.18,
+    _K.lidSlant: -0.45,
+    _K.gazeY: 3,
+    _K.browTilt: -12,
+    _K.mW: 0.85,
+    _K.mCorner: 378,
+    _K.mTop: 350,
+    _K.mBottom: 396,
+    _K.tongue: 0,
+    _K.tooth: 0,
+    _K.blush: 0.6,
+    _K.earDroop: 10,
+    _K.breathAmp: 0.014,
+    _K.breathRate: 0.35,
+    _K.slump: 0.02,
+    _K.wagAmp: 2,
+    _K.wagRate: 0.4,
+  }),
   Mood.surprised: MoodParams._make({
     _K.eyeScale: 1.14,
     _K.pupil: 0.6,
@@ -264,6 +311,40 @@ final Map<Mood, MoodParams> _presets = {
     _K.wagRate: 2.2,
     _K.hearts: 1,
   }),
+  Mood.wining: MoodParams._make({
+    _K.eyeScale: 1.08,
+    _K.pupil: 1.1,
+    _K.browLift: -10,
+    _K.mW: 1.15,
+    _K.mCorner: 354,
+    _K.mTop: 340,
+    _K.mBottom: 426,
+    _K.blush: 1.4,
+    _K.earDroop: -5,
+    _K.heartScale: 1.08,
+    _K.heartPulse: 0.12,
+    _K.heartRate: 2.5,
+    _K.breathAmp: 0.022,
+    _K.breathRate: 1.2,
+    _K.bobAmp: 18,
+    _K.bobRate: 1.6,
+    _K.wagAmp: 18,
+    _K.wagRate: 3.5,
+  }),
+  Mood.satisfied: MoodParams._make({
+    _K.lid: 0.12,
+    _K.mW: 0.9,
+    _K.mCorner: 356,
+    _K.mTop: 352,
+    _K.mBottom: 406,
+    _K.blush: 1.1,
+    _K.heartPulse: 0.04,
+    _K.heartRate: 0.6,
+    _K.breathAmp: 0.012,
+    _K.breathRate: 0.35,
+    _K.wagAmp: 4,
+    _K.wagRate: 0.6,
+  }),
 };
 
 // =============================================================================
@@ -273,13 +354,14 @@ final Map<Mood, MoodParams> _presets = {
 typedef _P = Paint Function(Rect box);
 
 Color _c(int rgb, [double opacity = 1.0]) => Color.fromRGBO(
-      (rgb >> 16) & 0xFF,
-      (rgb >> 8) & 0xFF,
-      rgb & 0xFF,
-      opacity.clamp(0.0, 1.0).toDouble(),
-    );
+  (rgb >> 16) & 0xFF,
+  (rgb >> 8) & 0xFF,
+  rgb & 0xFF,
+  opacity.clamp(0.0, 1.0).toDouble(),
+);
 
-_P _solid(Color color) => (box) => Paint()..color = color;
+_P _solid(Color color) =>
+    (box) => Paint()..color = color;
 
 /// Dégradé radial dans l'espace unitaire (0..1) de la boîte (comme en SVG).
 _P _radial(
@@ -293,10 +375,22 @@ _P _radial(
 }) {
   return (box) {
     final m = Matrix4(
-      box.width, 0, 0, 0, //
-      0, box.height, 0, 0,
-      0, 0, 1, 0,
-      box.left, box.top, 0, 1,
+      box.width,
+      0,
+      0,
+      0, //
+      0,
+      box.height,
+      0,
+      0,
+      0,
+      0,
+      1,
+      0,
+      box.left,
+      box.top,
+      0,
+      1,
     );
     return Paint()
       ..shader = ui.Gradient.radial(
@@ -312,62 +406,87 @@ _P _radial(
   };
 }
 
-_P _vertical(List<Color> colors) => (box) => Paint()
-  ..shader = ui.Gradient.linear(
-    Offset(box.left, box.top),
-    Offset(box.left, box.bottom),
-    colors,
-  );
+_P _vertical(List<Color> colors) =>
+    (box) => Paint()
+      ..shader = ui.Gradient.linear(
+        Offset(box.left, box.top),
+        Offset(box.left, box.bottom),
+        colors,
+      );
 
 final _P _gBody = _radial(
   [_c(0xFFF38C), _c(0xFFDA2E), _c(0xFFBF00), _c(0xEE9A00)],
   [0, .4, .78, 1],
-  cx: .45, cy: .35, r: .75, fx: .36, fy: .24,
+  cx: .45,
+  cy: .35,
+  r: .75,
+  fx: .36,
+  fy: .24,
 );
 final _P _gCream = _radial(
   [_c(0xFFFEEE), _c(0xFFF2B8), _c(0xFFE680, 0)],
   [0, .72, 1],
-  cx: .5, cy: .4, r: .7,
+  cx: .5,
+  cy: .4,
+  r: .7,
 );
 final _P _gEarInner = _radial(
   [_c(0xFFB9AF), _c(0xF98780), _c(0xE4605D)],
   [0, .7, 1],
-  cx: .6, cy: .62, r: .7,
+  cx: .6,
+  cy: .62,
+  r: .7,
 );
 final _P _gHeart = _radial(
   [_c(0xFF9A8C), _c(0xFF4B4B), _c(0xD81F2D), _c(0x97101F)],
   [0, .3, .72, 1],
-  cx: .38, cy: .3, r: .85, fx: .32, fy: .22,
+  cx: .38,
+  cy: .3,
+  r: .85,
+  fx: .32,
+  fy: .22,
 );
 final _P _gBrown = _radial(
   [_c(0x9A6641), _c(0x4E2D1A)],
   [0, 1],
-  cx: .4, cy: .3, r: .8,
+  cx: .4,
+  cy: .3,
+  r: .8,
 );
 final _P _gSclera = _radial(
   [_c(0xFFFFFF), _c(0xFFFFFF), _c(0xE3D6C6)],
   [0, .55, 1],
-  cx: .45, cy: .35, r: .75,
+  cx: .45,
+  cy: .35,
+  r: .75,
 );
 final _P _gIris = _radial(
   [_c(0xFFB547), _c(0xFFB547), _c(0xE07A14), _c(0x7E3C0E)],
   [0, .45, .8, 1],
-  cx: .5, cy: .5, r: .5,
+  cx: .5,
+  cy: .5,
+  r: .5,
 );
 final _P _gPupil = _radial(
   [_c(0x3A241A), _c(0x050302)],
   [0, 1],
-  cx: .4, cy: .35, r: .7,
+  cx: .4,
+  cy: .35,
+  r: .7,
 );
 final _P _gMouth = _radial(
   [_c(0xC93C4D), _c(0x8E1E2D), _c(0x52101C)],
   [0, .6, 1],
-  cx: .5, cy: .3, r: .85,
+  cx: .5,
+  cy: .3,
+  r: .85,
 );
 final _P _gTongue = _radial(
   [_c(0xFFB8C6), _c(0xF4758D), _c(0xD2566F)],
   [0, .7, 1],
-  cx: .5, cy: .3, r: .75,
+  cx: .5,
+  cy: .3,
+  r: .75,
 );
 final _P _gTooth = _vertical([_c(0xFFFFFF), _c(0xEBDDBE)]);
 
@@ -385,7 +504,11 @@ void _oval(
   c.save();
   c.translate(cx, cy);
   if (deg != 0) c.rotate(_rad(deg));
-  final box = Rect.fromCenter(center: Offset.zero, width: rx * 2, height: ry * 2);
+  final box = Rect.fromCenter(
+    center: Offset.zero,
+    width: rx * 2,
+    height: ry * 2,
+  );
   c.drawOval(box, paint(box));
   c.restore();
 }
@@ -421,10 +544,22 @@ Path _ovalPath(double cx, double cy, double rx, double ry, [double deg = 0]) {
   final tx = cx - cs * cx + sn * cy;
   final ty = cy - sn * cx - cs * cy;
   final m = Matrix4(
-    cs, sn, 0, 0, //
-    -sn, cs, 0, 0,
-    0, 0, 1, 0,
-    tx, ty, 0, 1,
+    cs,
+    sn,
+    0,
+    0, //
+    -sn,
+    cs,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    tx,
+    ty,
+    0,
+    1,
   );
   return path.transform(m.storage);
 }
@@ -656,7 +791,8 @@ class CharacterBackupPainter extends CustomPainter {
 
     // battement "lub-dub"
     final ph = (t * p[_K.heartRate]) % 1.0;
-    final beat = math.exp(-math.pow((ph - .08) / .05, 2)) +
+    final beat =
+        math.exp(-math.pow((ph - .08) / .05, 2)) +
         .6 * math.exp(-math.pow((ph - .28) / .06, 2));
     final pulse = 1 + p[_K.heartPulse] * beat;
 
@@ -732,7 +868,9 @@ class CharacterBackupPainter extends CustomPainter {
     double gy, {
     required bool left,
   }) {
-    final patch = left ? [279.0, 324.0, 68.0, 76.0] : [467.0, 279.0, 62.0, 73.0];
+    final patch = left
+        ? [279.0, 324.0, 68.0, 76.0]
+        : [467.0, 279.0, 62.0, 73.0];
     final sc = left ? [284.0, 326.0, 56.0, 63.0] : [463.0, 281.0, 50.0, 62.0];
     final iris = left ? [306.0, 332.0, 44.0] : [447.0, 286.0, 44.0];
     final pupil = left ? [308.0, 334.0, 29.0] : [445.0, 288.0, 29.0];
@@ -794,7 +932,14 @@ class CharacterBackupPainter extends CustomPainter {
     c.restore(); // échelle de l'oeil
   }
 
-  void _lid(Canvas c, double rx, double ry, double amt, double slant, double dir) {
+  void _lid(
+    Canvas c,
+    double rx,
+    double ry,
+    double amt,
+    double slant,
+    double dir,
+  ) {
     if (amt < 0.01) return;
     final edge = -ry - 6 + amt * (2 * ry + 18);
     final slantEff = slant * (amt.clamp(0.0, 0.35) / 0.35);
@@ -831,96 +976,102 @@ class CharacterBackupPainter extends CustomPainter {
   // ---- bouche (paramétrique pour pouvoir passer d'une humeur à l'autre) -----
 
   void _mouth(Canvas c, MoodParams p, double t) {
-  final w = p[_K.mW];
-  const cx = 386.0;
-  final cornerY = p[_K.mCorner];
-  final topCtrl = p[_K.mTop];
-  // bouche "qui respire" quand il dort
-  final bottomY =
-      p[_K.mBottom] + p[_K.zzz] * 2.5 * math.sin(t * 2 * math.pi * 0.25);
-  final d = bottomY - cornerY;
+    final w = p[_K.mW];
+    const cx = 386.0;
+    final cornerY = p[_K.mCorner];
+    final topCtrl = p[_K.mTop];
+    // bouche "qui respire" quand il dort
+    final bottomY =
+        p[_K.mBottom] + p[_K.zzz] * 2.5 * math.sin(t * 2 * math.pi * 0.25);
+    final d = bottomY - cornerY;
 
-  final xl = cx - 34 * w;
-  final xr = cx + 34 * w;
-  final yl = cornerY;
-  final yr = cornerY - 2;
+    final xl = cx - 34 * w;
+    final xr = cx + 34 * w;
+    final yl = cornerY;
+    final yr = cornerY - 2;
 
-  // Pointe centrale de la lèvre (même hauteur que le sommet de l'ancienne
-  // arche, donc les humeurs gardent leur forme).
-  final cuspY = 0.25 * yl + 0.5 * topCtrl + 0.25 * yr;
+    // Pointe centrale de la lèvre (même hauteur que le sommet de l'ancienne
+    // arche, donc les humeurs gardent leur forme).
+    final cuspY = 0.25 * yl + 0.5 * topCtrl + 0.25 * yr;
 
-  // Profondeur des deux arcs (creux) de la lèvre supérieure.
-  final dip = 7.0 * math.max(0.6, math.min(w, 1.2));
+    // Profondeur des deux arcs (creux) de la lèvre supérieure.
+    final dip = 7.0 * math.max(0.6, math.min(w, 1.2));
 
-  // Chaque arc est une quadratique dont le point de contrôle est sous la
-  // corde : la courbe passe donc `dip` plus bas que la ligne droite.
-  final ctrlL = Offset((xl + cx) / 2, (yl + cuspY) / 2 + 2 * dip);
-  final ctrlR = Offset((cx + xr) / 2, (cuspY + yr) / 2 + 2 * dip);
+    // Chaque arc est une quadratique dont le point de contrôle est sous la
+    // corde : la courbe passe donc `dip` plus bas que la ligne droite.
+    final ctrlL = Offset((xl + cx) / 2, (yl + cuspY) / 2 + 2 * dip);
+    final ctrlR = Offset((cx + xr) / 2, (cuspY + yr) / 2 + 2 * dip);
 
-  // Le haut de la bouche suit directement les deux arcs :
-  // remplissage et contour sont donc identiques.
-  final mouth = Path()
-    ..moveTo(xl, yl)
-    ..quadraticBezierTo(ctrlL.dx, ctrlL.dy, cx, cuspY)
-    ..quadraticBezierTo(ctrlR.dx, ctrlR.dy, xr, yr)
-    ..cubicTo(
-      xr + 5 * w, cornerY + .56 * d,
-      cx + 23 * w, cornerY + .93 * d,
-      cx + 2, bottomY,
-    )
-    ..cubicTo(
-      cx - 20 * w, cornerY + .89 * d,
-      xl - 2 * w, cornerY + .53 * d,
-      xl, yl,
-    )
-    ..close();
-
-  _fillPath(c, mouth, _gMouth);
-
-  c.save();
-  c.clipPath(mouth);
-
-  // ombre sous la lèvre supérieure
-  _oval(c, cx + 2, cuspY + 9, 40 * w, 12, _solid(_c(0x3E0A14, .55)));
-
-  // langue : elle sort de plus en plus avec la valeur "tongue"
-  final vis = p[_K.tongue];
-  if (vis > 0.01) {
-    final ty = bottomY + 18 - 29 * vis;
-    final trx = (24 * math.min(w, 1.05)).toDouble();
-    _oval(c, cx + 3, ty, trx, 17, _gTongue);
-    c.drawLine(
-      Offset(cx + 3, ty - 12),
-      Offset(cx + 3, ty + 6),
-      _stroke(_c(0xC0455E, .7), 2),
-    );
-    _oval(c, cx - 5, ty - 7, 8, 4, _solid(_c(0xFFFFFF, .55)), deg: -25);
-  }
-
-  // dent accrochée à la pointe de la lèvre (coupée par les arcs)
-  final tooth = p[_K.tooth];
-  if (tooth > 0.02) {
-    c.save();
-    c.translate(cx, cuspY + 1.5);
-    c.scale(1, tooth);
-    final tp = Path()
-      ..moveTo(-9, 0)
-      ..lineTo(5, 0)
-      ..lineTo(5, 12)
-      ..quadraticBezierTo(-2, 17.5, -9, 12)
+    // Le haut de la bouche suit directement les deux arcs :
+    // remplissage et contour sont donc identiques.
+    final mouth = Path()
+      ..moveTo(xl, yl)
+      ..quadraticBezierTo(ctrlL.dx, ctrlL.dy, cx, cuspY)
+      ..quadraticBezierTo(ctrlR.dx, ctrlR.dy, xr, yr)
+      ..cubicTo(
+        xr + 5 * w,
+        cornerY + .56 * d,
+        cx + 23 * w,
+        cornerY + .93 * d,
+        cx + 2,
+        bottomY,
+      )
+      ..cubicTo(
+        cx - 20 * w,
+        cornerY + .89 * d,
+        xl - 2 * w,
+        cornerY + .53 * d,
+        xl,
+        yl,
+      )
       ..close();
-    _fillPath(c, tp, _gTooth);
-    c.restore();
-  }
-  c.restore();
 
-  // Contour avec jointure en pointe : la pointe centrale reste nette
-  // comme sur votre croquis (avec une jointure ronde elle s'arrondirait).
-  c.drawPath(
-    mouth,
-    _stroke(_c(0x7A1826), 2.5)..strokeJoin = StrokeJoin.miter,
-  );
-}
+    _fillPath(c, mouth, _gMouth);
+
+    c.save();
+    c.clipPath(mouth);
+
+    // ombre sous la lèvre supérieure
+    _oval(c, cx + 2, cuspY + 9, 40 * w, 12, _solid(_c(0x3E0A14, .55)));
+
+    // langue : elle sort de plus en plus avec la valeur "tongue"
+    final vis = p[_K.tongue];
+    if (vis > 0.01) {
+      final ty = bottomY + 18 - 29 * vis;
+      final trx = (24 * math.min(w, 1.05)).toDouble();
+      _oval(c, cx + 3, ty, trx, 17, _gTongue);
+      c.drawLine(
+        Offset(cx + 3, ty - 12),
+        Offset(cx + 3, ty + 6),
+        _stroke(_c(0xC0455E, .7), 2),
+      );
+      _oval(c, cx - 5, ty - 7, 8, 4, _solid(_c(0xFFFFFF, .55)), deg: -25);
+    }
+
+    // dent accrochée à la pointe de la lèvre (coupée par les arcs)
+    final tooth = p[_K.tooth];
+    if (tooth > 0.02) {
+      c.save();
+      c.translate(cx, cuspY + 1.5);
+      c.scale(1, tooth);
+      final tp = Path()
+        ..moveTo(-9, 0)
+        ..lineTo(5, 0)
+        ..lineTo(5, 12)
+        ..quadraticBezierTo(-2, 17.5, -9, 12)
+        ..close();
+      _fillPath(c, tp, _gTooth);
+      c.restore();
+    }
+    c.restore();
+
+    // Contour avec jointure en pointe : la pointe centrale reste nette
+    // comme sur votre croquis (avec une jointure ronde elle s'arrondirait).
+    c.drawPath(
+      mouth,
+      _stroke(_c(0x7A1826), 2.5)..strokeJoin = StrokeJoin.miter,
+    );
+  }
 
   void _paws(Canvas c) {
     _oval(c, 274, 478, 44, 44, _gBody);

@@ -236,7 +236,7 @@ class GameSfx {
   static Uint8List redBubbleForming() => SfxSynth.toWav(
     SfxSynth.sweep(startHz: 200, endHz: 650, seconds: 0.45, volume: 0.5),
   );
-  
+
   // Short, bright laser zap with a sharp attack and a fast falling pitch.
   static Uint8List laser() => SfxSynth.toWav(
     SfxSynth.mix([
@@ -286,15 +286,48 @@ class GameSfx {
     ]),
   );
 
-  // Soft alert: gentle two-note "ding-dong" followed by a pause.
+  // Heavy alert: one single strike (all layers start together), then a pause.
   static Uint8List alert() => SfxSynth.toWav(
     SfxSynth.mix([
-      SfxSynth.chime(hz: 880, seconds: 0.55, volume: 0.35), // A5
-      SfxSynth.delay(
-        SfxSynth.chime(hz: 659.3, seconds: 0.7, volume: 0.35), // E5
-        0.3,
+      // Main bell tone (E5), long ring.
+      SfxSynth.chime(hz: 659.3, seconds: 0.8, volume: 0.42),
+
+      // Heavy low body, an octave below, same instant.
+      SfxSynth.tone(
+        startHz: 330,
+        endHz: 315,
+        seconds: 0.55,
+        volume: 0.38,
+        wave: Wave.triangle,
+        attack: 0.003,
+        decay: 3,
       ),
-      SfxSynth.silence(1.6), // total length: ~1.6 s per cycle
+
+      // Sub weight for the "heavy" feel.
+      SfxSynth.tone(
+        startHz: 165,
+        endHz: 160,
+        seconds: 0.4,
+        volume: 0.2,
+        attack: 0.004,
+        decay: 4,
+      ),
+
+      // Short square edge so it cuts through.
+      SfxSynth.tone(
+        startHz: 659.3,
+        endHz: 620,
+        seconds: 0.15,
+        volume: 0.08,
+        wave: Wave.square,
+        attack: 0.002,
+        decay: 6,
+      ),
+
+      // Tiny soft transient for the "strike".
+      SfxSynth.softNoise(seconds: 0.02, volume: 0.25, decay: 6, smoothing: 0.7),
+
+      SfxSynth.silence(0.5), // keeps a pause at the end of the loop
     ]),
   );
 

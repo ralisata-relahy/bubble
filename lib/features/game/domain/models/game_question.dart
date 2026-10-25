@@ -9,6 +9,7 @@ class GameQuestion {
     required this.answer,
     required this.choices,
     required this.knowledge,
+    this.nameAudio,
   });
 
   /// Texte de la question affichée par le laser.
@@ -22,4 +23,5 @@ class GameQuestion {
 
   /// Notions libérées après une bonne réponse.
   final List<String> knowledge;
+  final String? nameAudio;
 }

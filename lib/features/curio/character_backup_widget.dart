@@ -24,6 +24,7 @@ class CharacterBackupWidget extends StatefulWidget {
     this.mood = Mood.happy,
     this.onTap,
     this.hopOnTap = true,
+    this.isPausedNotifier,
   });
 
   /// Taille de référence du personnage. Le dessin a un rapport 680 / 640
@@ -34,6 +35,7 @@ class CharacterBackupWidget extends StatefulWidget {
   final Mood mood;
   final VoidCallback? onTap;
   final bool hopOnTap;
+  final ValueNotifier<bool>? isPausedNotifier;
 
   @override
   State<CharacterBackupWidget> createState() => _CharacterBackupWidgetState();
@@ -70,9 +72,13 @@ class _CharacterBackupWidgetState extends State<CharacterBackupWidget>
     );
     _repaint = Listenable.merge([_time, _moodCtrl, _hopCtrl]);
 
+    widget.isPausedNotifier?.addListener(_onPauseChanged);
     _ticker = createTicker((elapsed) {
       _time.value = elapsed.inMicroseconds / 1e6;
-    })..start();
+    });
+    if (widget.isPausedNotifier?.value != true) {
+      _ticker.start();
+    }
   }
 
   @override
@@ -114,8 +120,17 @@ class _CharacterBackupWidgetState extends State<CharacterBackupWidget>
   MoodParams _current() =>
       MoodParams.lerp(_from, _to, Curves.easeInOut.transform(_moodCtrl.value));
 
+  void _onPauseChanged() {
+    if (widget.isPausedNotifier?.value == true) {
+      if (_ticker.isActive) _ticker.stop();
+    } else {
+      if (!_ticker.isActive) _ticker.start();
+    }
+  }
+
   @override
   void dispose() {
+    widget.isPausedNotifier?.removeListener(_onPauseChanged);
     _ticker.dispose();
     unawaited(_audioPlayer.dispose());
     _moodCtrl.dispose();

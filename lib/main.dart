@@ -1,42 +1,52 @@
+import 'package:bubble/core/presentation/widgets/hud_button.dart';
 import 'package:flame/game.dart';
-import 'package:flame_audio/flame_audio.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
+
 import 'audio_generation/sound_sfx.dart';
 import 'core/presentation/widgets/space_background.dart';
 import 'features/curio/presentation/widgets/curio_timer.dart';
 import 'features/game/presentation/bubble_game.dart';
-// import 'features/game/presentation/overlays/game_result_overlay.dart';
 
-/// Initialise les dépendances Flutter/audio et lance l'écran principal.
+/// Point d'entree principal de l'application.
+/// Initialise les liaisons systeme, les effets audio et lance l'ecran de jeu.
 Future<void> main() async {
+  // Garantit l'initialisation correcte du moteur Flutter avant tout appel asynchrone.
   WidgetsFlutterBinding.ensureInitialized();
-  SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
-  await FlameAudio.audioCache.loadAll([
-    'bouble_pop.mp3',
-    'false_pop.mp3',
-    'e-ho.mp3',
-  ]);
+
+  // Active le mode plein ecran immersif pour masquer la barre de statut et la barre de navigation.
+  // SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+  // Initialise les effets sonores proceduraux geres par SoLoud.
   await SoundEffects.init();
-  // Une instance unique relie le moteur Flame, l'overlay et les contrôles Flutter.
+
+  // Instance unique du jeu coordonnant la boucle Flame, la physique et les entites.
   final game = BubbleGame();
 
-  // Le fond est dessiné par Flutter sous le canvas Flame transparent.
+  // Lance l'application avec un fond d'etoiles spatial et le canvas Flame transparent.
   runApp(
     MaterialApp(
       debugShowCheckedModeBanner: false,
       home: Scaffold(
         body: SpaceBackground(
-          groundStars: 50,seed: 1000,density: 5,
+          groundStars: 50,
+          seed: 1000,
+          density: 5,
           child: GameWidget<BubbleGame>(
             game: game,
             overlayBuilderMap: {
               BubbleGame.curioOverlay: (context, game) =>
                   CurioOverlay(game: game),
-              // BubbleGame.victoryOverlay: (context, game) =>
-              //     GameResultOverlay(didWin: true, onRestart: game.restart),
-              // BubbleGame.gameOverOverlay: (context, game) =>
-              //     GameResultOverlay(didWin: false, onRestart: game.restart),
+              // Bouton 1 : accelere la dispersion des bulles de savoir.
+              BubbleGame.accelerateOverlay: (context, BubbleGame game) => Align(
+                alignment: Alignment.bottomLeft,
+                child: Padding(
+                  padding: const EdgeInsets.only(bottom: 130, left: 18),
+                  child: HudButton(
+                    label: 'Skip',
+                    icon: Icons.skip_next,
+                    onPressed: game.accelerateKnowledge,
+                  ),
+                ),
+              ),
             },
           ),
         ),

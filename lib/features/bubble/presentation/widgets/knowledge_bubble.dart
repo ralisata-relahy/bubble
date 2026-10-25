@@ -1,27 +1,40 @@
 import 'dart:math';
-import 'dart:ui' show Canvas, Offset, Size;
+import 'dart:ui'
+    show
+        BlurStyle,
+        Canvas,
+        MaskFilter,
+        Offset,
+        Paint,
+        PaintingStyle,
+        Rect,
+        Size;
 
 import 'package:flame/components.dart';
 import 'package:flame/game.dart';
-import 'package:bubble_component/bubble_component.dart' as bubble_texture;
 import 'package:flutter/material.dart'
-    show Color, Colors, Curves, FontWeight, Shadow, TextPainter, TextStyle;
+    show
+        Alignment,
+        Color,
+        Colors,
+        Curves,
+        FontWeight,
+        RadialGradient,
+        Shadow,
+        TextPainter,
+        TextStyle;
 
-import 'package:bubble/features/bubble/models/bubble_config.dart';
-import 'package:bubble/features/bubble/models/bubble_style.dart';
-import 'package:bubble/features/bubble/presentation/components/bubble.dart';
-import 'package:bubble/features/bubble/presentation/rendering/bubble_text_helper.dart';
 import 'package:bubble/core/contracts/knowledge_bubble_host.dart';
+import 'package:bubble/core/physics/bubble_collision_resolver.dart';
+import 'package:bubble/features/bubble/models/bubble_config.dart';
+import 'package:bubble/features/bubble/presentation/rendering/bubble_text_helper.dart';
 
-/// Bulle secondaire (« savoir ») qui jaillit de l'éclatement d'une bulle
-/// principale. Même signature que `Bubble` pour un remplacement direct.
-///
-/// - Texture de bulle partagée avec le composant principal
-/// - Texte responsive : retour à la ligne + réduction automatique
-/// - Apparition avec rebond ; vitesse pilotée par `elapsedFreezeTime`
-/// - S'auto-supprime quand elle sort de l'écran
+/// Bulle secondaire de savoir qui jaillit lors de l'eclatement d'une bulle cible.
+/// Partage la physique de collision de la bulle principale avec un rendu dedie.
 class KnowledgeBubbleComponent extends PositionComponent
-    with HasGameReference<FlameGame> {
+    with HasGameReference<FlameGame>
+    implements BubblePhysicsBody {
+  /// Cree une bulle de savoir configuree pour une manche donnee.
   KnowledgeBubbleComponent({
     required Vector2 position,
     required this.config,
@@ -31,130 +44,146 @@ class KnowledgeBubbleComponent extends PositionComponent
   }) : _random = random ?? Random(),
        super(
          position: position,
-         size: Vector2(config.style.size.width, config.style.size.height),
+         size: Vector2(
+           config.style.size.width * _sizeScale,
+           config.style.size.height * _sizeScale,
+         ),
          anchor: Anchor.center,
        );
 
+  /// Configuration esthetique et cinematique de la bulle.
   final BubbleConfig config;
+  static const double _sizeScale = 0.8;
+
+  /// Couleur du texte affiche au centre.
   final Color textColor;
+
+  /// Marqueur indiquant si la bulle provient d'un eclatement de cible.
   final bool isBurstBubble;
+
+  /// Generateur pseudo-aleatoire pour les variations de phase et d'ejection.
   final Random _random;
 
+  /// Duree de la transition d'apparition en secondes.
   static const double _appearDuration = 0.45;
 
-  // ── Mouvement ──
+  // Variables internes de mouvement cinematique.
   late Vector2 _dir;
   late Vector2 _perp;
   late final Vector2 _centerBase;
   late double _t;
   double _age = 0;
   bool _removed = false;
-  double _appear = 0; // 0 → 1 (avec rebond)
+  double _appear = 0;
 
-  // ── Rendu et texte ──
-  late final double _d; // diamètre
-  late final Offset _c; // centre
-  late final bubble_texture.BubbleRenderer _renderer;
+  // Geometrie locale, rendu et typographie.
+  late final double _d;
+  late final Offset _c;
+  late final Rect _bubbleRect;
+  late final Paint _bodyPaint;
+  late final Paint _shadePaint;
+  late final Paint _rimGlowPaint;
+  late final Paint _rimPaint;
+  late final Paint _highlightGlowPaint;
+  late final Paint _highlightPaint;
   late final TextPainter _tp;
 
+  // Implementation du contrat physique BubblePhysicsBody.
+  @override
   Vector2 get moveDir => _dir;
+
+  @override
   Vector2 get centerBase => _centerBase;
+
+  @override
   Vector2 get movePerp => _perp;
 
-  // ── Collisions (même logique que Bubble) ──
-  bool get isCollisionActive => _appear >= 0.5;
+  @override
+  double get speed => config.speed;
+
+  @override
+  double get waveAmplitude => config.waveAmplitude;
+
+  @override
+  double get waveFrequency => config.waveFrequency;
+
+  @override
+  double get waveTime => _t;
+
+  @override
+  set waveTime(double value) => _t = value;
+
+  @override
+  bool get isCollisionActive => _appear >= 0.5 && !_removed;
+
+  /// Indique que la bulle a entierement quitte la fenetre de jeu.
+  bool get hasLeftScreen => _removed;
+
+  @override
   double get collisionRadius => _d / 2;
 
+  /// Delegue la resolution de collision au moteur physique commun.
   void checkAndResolveCollision(dynamic other, {double padding = 6.0}) {
-    if (!isCollisionActive || other == null) return;
-
-    double otherRadius = 0;
-    Vector2? otherPos;
-    Vector2? otherDir;
-    Vector2? otherCenterBase;
-    Vector2? otherPerp;
-
-    if (other is Bubble) {
-      if (!other.isCollisionActive) return;
-      otherRadius = other.collisionRadius;
-      otherPos = other.position;
-      otherDir = other.moveDir;
-      otherCenterBase = other.centerBase;
-      otherPerp = other.movePerp;
-    } else if (other is KnowledgeBubbleComponent) {
-      if (!other.isCollisionActive) return;
-      otherRadius = other.collisionRadius;
-      otherPos = other.position;
-      otherDir = other.moveDir;
-      otherCenterBase = other.centerBase;
-      otherPerp = other.movePerp;
-    } else {
-      return;
-    }
-
-    final delta = otherPos - position;
-    var distance = delta.length;
-    final minDistance = collisionRadius + otherRadius + padding;
-    if (distance >= minDistance) return;
-
-    Vector2 normal;
-    if (distance < 0.001) {
-      final dirDiff = _dir - otherDir;
-      normal = dirDiff.length > 0.001 ? dirDiff.normalized() : Vector2(1, 0);
-      distance = 0.001;
-    } else {
-      normal = delta / distance;
-    }
-
-    final overlap = minDistance - distance;
-    final separation = normal * (overlap / 2);
-    position.sub(separation);
-    _centerBase.sub(separation);
-    otherPos.add(separation);
-    otherCenterBase.add(separation);
-
-    final va = _dir.dot(normal);
-    final vb = otherDir.dot(normal);
-    if (va - vb > 0) {
-      _dir.add(normal * (vb - va));
-      otherDir.add(normal * (va - vb));
-      if (_dir.length > 0.001) _dir.normalize();
-      if (otherDir.length > 0.001) otherDir.normalize();
-      _perp.setValues(-_dir.y, _dir.x);
-      otherPerp.setValues(-otherDir.y, otherDir.x);
+    if (other is BubblePhysicsBody) {
+      BubbleCollisionResolver.resolve(this, other, padding: padding);
     }
   }
 
+  /// Initialise la geometrie, les vecteurs de deplacement et le peintre de texte.
   @override
   Future<void> onLoad() async {
     _dir = config.directionVector.clone();
     if (_dir.length < 0.001) {
       _dir = Vector2(1, 1).normalized();
     }
-    // S'assure que la bulle a une composante verticale minimale pour sortir par le haut ou le bas
-    if (_dir.y.abs() < 0.3) {
-      _dir.y = _dir.y >= 0 ? 0.6 : -0.6;
-      _dir.normalize();
-    }
+
+    // Assure une trajectoire purement verticale vers le haut ou vers le bas
+    // pour sortir uniquement par le haut ou le bas de l'ecran.
+    final goUp = _dir.y < 0 || (_dir.y == 0 && _random.nextBool());
+    final angleVariation = (_random.nextDouble() - 0.5) * 0.4; // Legere dispersion angulaire
+    _dir = Vector2(sin(angleVariation), goUp ? -cos(angleVariation) : cos(angleVariation)).normalized();
+
     _perp = Vector2(-_dir.y, _dir.x);
     _centerBase = position.clone();
     _t = _random.nextDouble() * 2 * pi;
 
     _d = min(size.x, size.y);
     _c = Offset(size.x / 2, size.y / 2);
-    _renderer = bubble_texture.BubbleRenderer(
-      bubble_texture.BubbleStyle(
-        shape: switch (config.style.shape) {
-          BubbleShape.sphere => bubble_texture.BubbleShape.sphere,
-          BubbleShape.ellipsoid => bubble_texture.BubbleShape.ellipsoid,
-        },
-        size: config.style.size,
-        baseColor: config.style.baseColor,
-        rimWidth: config.style.rimWidth,
-      ),
-    );
+    _bubbleRect = Rect.fromLTWH(0, 0, size.x, size.y);
+    _bodyPaint = Paint()
+      ..shader = RadialGradient(
+        center: const Alignment(-0.2, -0.25),
+        radius: 1,
+        colors: [
+          const Color(0xFF9B63B4),
+          config.style.baseColor,
+          const Color(0xFF602B80),
+          const Color(0xFF471B62),
+        ],
+        stops: const [0, 0.55, 0.86, 1],
+      ).createShader(_bubbleRect);
+    _shadePaint = Paint()
+      ..shader = const RadialGradient(
+        center: Alignment(-0.25, -0.3),
+        radius: 1.1,
+        colors: [Color(0x00090018), Color(0x40090018)],
+        stops: [0.48, 1],
+      ).createShader(_bubbleRect);
+    _rimGlowPaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = _d * 0.055
+      ..color = const Color(0x66F5DFFF)
+      ..maskFilter = MaskFilter.blur(BlurStyle.normal, _d * 0.018);
+    _rimPaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = _d * 0.016
+      ..color = const Color(0xFFF3D9FF);
+    _highlightGlowPaint = Paint()
+      ..color = const Color(0x77F8E8FF)
+      ..maskFilter = MaskFilter.blur(BlurStyle.normal, _d * 0.025);
+    _highlightPaint = Paint()..color = const Color(0xD9E7C7F5);
 
-    // Texte responsive : zone = carré inscrit (~70 % du diamètre)
+    // Initialisation du TextPainter avec mise en page automatique responsive.
     final inner = Size(size.x, size.y);
     _tp = BubbleTextHelper.createTextPainter(
       text: config.text,
@@ -178,12 +207,13 @@ class KnowledgeBubbleComponent extends PositionComponent
     );
   }
 
+  /// Met a jour la position, l'animation d'eclosion et verifie les limites de l'ecran.
   @override
   void update(double dt) {
     super.update(dt);
     if (_removed) return;
 
-    // Apparition (épanouissement)
+    // Progression de l'echelle d'apparition (effet elastique doux).
     _age += dt;
     _appear = Curves.easeOutBack.transform(
       (_age / _appearDuration).clamp(0.0, 1.0),
@@ -191,70 +221,51 @@ class KnowledgeBubbleComponent extends PositionComponent
 
     _t += dt;
 
-    // Mêmes paliers de vitesse que Bubble pendant le gel
+    // Ajustement de la vitesse pendant les phases de freeze du jeu.
     var speedMultiplier = 1.0;
     final host = game as KnowledgeBubbleHost;
     if (host.isFrozen) {
       final elapsed = host.elapsedFreezeTime;
       if (elapsed < 0.78) {
-        speedMultiplier = 2.0;
+        speedMultiplier = 1.2;
       } else if (elapsed < 2) {
-        speedMultiplier = 0.5;
+        speedMultiplier = 0.2;
       } else {
-        speedMultiplier = 2.0;
+        speedMultiplier = 1.4;
       }
     }
 
     _centerBase.add(_dir * (config.speed * dt * speedMultiplier));
-    _renderer.update(dt);
     final wave =
         _perp * (sin(_t * config.waveFrequency) * config.waveAmplitude);
     position.setFrom(_centerBase + wave);
 
-    // Rebond sur les bords gauche et droit (zigzag)
-    _checkWallBounce();
-
+    // Suppression propre une fois completement sortie de la fenetre de jeu (4 cotes).
     if (_isOffScreen()) {
       _removed = true;
       removeFromParent();
     }
   }
 
-  void _checkWallBounce() {
-    final r = _d / 2;
-
-    // Rebond sur le bord gauche
-    if (position.x - r < 0 && _dir.x < 0) {
-      _dir.x = -_dir.x;
-      _perp.setValues(-_dir.y, _dir.x);
-      final overflow = r - position.x;
-      position.x = r;
-      _centerBase.x += overflow;
-    }
-    // Rebond sur le bord droit
-    else if (position.x + r > game.size.x && _dir.x > 0) {
-      _dir.x = -_dir.x;
-      _perp.setValues(-_dir.y, _dir.x);
-      final overflow = position.x + r - game.size.x;
-      position.x = game.size.x - r;
-      _centerBase.x -= overflow;
-    }
-  }
-
+  /// Verifie si la bulle a integralement quitte l'ecran par l'un des 4 bords.
+  /// Les bulles de savoir ne rebondissent pas : elles sortent librement.
   bool _isOffScreen() {
     final r = _d / 2;
-    // Ressort UNIQUEMENT par le haut ou par le bas
-    if (_dir.y > 0 && position.y - r > game.size.y) return true;
-    if (_dir.y < 0 && position.y + r < 0) return true;
+    if (position.x - r > game.size.x) return true;
+    if (position.x + r < 0) return true;
+    if (position.y - r > game.size.y) return true;
+    if (position.y + r < 0) return true;
     return false;
   }
 
+  /// Libere les ressources graphiques lors de la destruction du composant.
   @override
   void onRemove() {
     if (isLoaded) _tp.dispose();
     super.onRemove();
   }
 
+  /// Rendu superpose : fond de la bulle, texte centre puis reflets brillants.
   @override
   void render(Canvas canvas) {
     if (_appear <= 0.001) return;
@@ -265,16 +276,37 @@ class KnowledgeBubbleComponent extends PositionComponent
       ..scale(_appear)
       ..translate(-_c.dx, -_c.dy);
 
-    _renderer.paintBody(canvas);
+    // Corps violet lumineux et ombrage doux pour donner du volume.
+    canvas
+      ..drawOval(_bubbleRect, _bodyPaint)
+      ..drawOval(_bubbleRect, _shadePaint);
 
-    // Keep the text above the body and below the glass highlights.
+    // Texte au centre sous le reflet principal.
     canvas
       ..save()
       ..translate(_c.dx, _c.dy);
     _tp.paint(canvas, Offset(-_tp.width / 2, -_tp.height / 2));
     canvas.restore();
 
-    _renderer.paintGloss(canvas);
+    _paintGloss(canvas);
     canvas.restore();
+  }
+
+  void _paintGloss(Canvas canvas) {
+    canvas
+      ..drawOval(_bubbleRect, _rimGlowPaint)
+      ..drawOval(_bubbleRect, _rimPaint)
+      ..save()
+      ..translate(size.x * 0.3, size.y * 0.22)
+      ..rotate(-pi / 4);
+    final highlight = Rect.fromCenter(
+      center: Offset.zero,
+      width: _d * 0.3,
+      height: _d * 0.105,
+    );
+    canvas
+      ..drawOval(highlight, _highlightGlowPaint)
+      ..drawOval(highlight, _highlightPaint)
+      ..restore();
   }
 }

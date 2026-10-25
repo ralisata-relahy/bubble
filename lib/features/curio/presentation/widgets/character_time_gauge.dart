@@ -14,6 +14,8 @@ class CharacterTimeGauge extends StatefulWidget {
     this.barWidth = 20,
     this.characterSize = const Size(120, 113), // ≈ ratio 680 / 640
     this.autoStart = true,
+    this.isCriticalNotifier,
+    this.isTimerPausedNotifier,
   });
 
   final Duration duration;
@@ -22,6 +24,8 @@ class CharacterTimeGauge extends StatefulWidget {
   final double barWidth;
   final Size characterSize;
   final bool autoStart;
+  final ValueNotifier<bool>? isCriticalNotifier;
+  final ValueNotifier<bool>? isTimerPausedNotifier;
 
   @override
   State<CharacterTimeGauge> createState() => CharacterTimeGaugeState();
@@ -32,14 +36,41 @@ class CharacterTimeGaugeState extends State<CharacterTimeGauge>
     with TickerProviderStateMixin {
   late final AnimationController _ctrl;
   late final AnimationController _pulse;
+  final ValueNotifier<bool> isCriticalNotifier = ValueNotifier<bool>(false);
 
   /// Temps restant normalisé : 1 signifie plein et 0 signifie écoulé.
   double get remaining => 1 - _ctrl.value;
 
+  int _lastAlertTimestamp = 0;
+  bool _wasCritical = false;
+
   @override
   void initState() {
     super.initState();
+    widget.isTimerPausedNotifier?.addListener(_onTimerPauseChanged);
     _ctrl = AnimationController(vsync: this, duration: widget.duration)
+      ..addListener(() {
+        final r = 1 - _ctrl.value;
+        final isCritical = r <= 0.3 && r > 0;
+        if (isCriticalNotifier.value != isCritical) {
+          isCriticalNotifier.value = isCritical;
+        }
+        if (widget.isCriticalNotifier != null &&
+            widget.isCriticalNotifier!.value != isCritical) {
+          widget.isCriticalNotifier!.value = isCritical;
+        }
+
+        if (isCritical) {
+          final now = DateTime.now().millisecondsSinceEpoch;
+          if (!_wasCritical || now - _lastAlertTimestamp >= 1000) {
+            _lastAlertTimestamp = now;
+            SoundEffects.play(Sfx.alert);
+          }
+        } else {
+          _lastAlertTimestamp = 0;
+        }
+        _wasCritical = isCritical;
+      })
       ..addStatusListener((status) {
         if (status == AnimationStatus.completed) widget.onFinished?.call();
       });
@@ -50,18 +81,61 @@ class CharacterTimeGaugeState extends State<CharacterTimeGauge>
     if (widget.autoStart) _ctrl.forward();
   }
 
+  void _onTimerPauseChanged() {
+    if (widget.isTimerPausedNotifier?.value == true) {
+      pause();
+    } else {
+      resume();
+    }
+  }
+
   /// Redémarre, suspend ou reprend l'animation depuis le jeu.
-  void restart() => _ctrl.forward(from: 0);
-  void pause() => _ctrl.stop();
-  void resume() => _ctrl.forward();
+  void restart() {
+    isCriticalNotifier.value = false;
+    widget.isCriticalNotifier?.value = false;
+    _lastAlertTimestamp = 0;
+    _wasCritical = false;
+    _pulse.repeat(reverse: true);
+    _ctrl.forward(from: 0);
+  }
+
+  void pause() {
+    _ctrl.stop();
+    _pulse.stop();
+  }
+
+  void resume() {
+    _ctrl.forward();
+    _pulse.repeat(reverse: true);
+  }
 
   /// Ajoute une fraction de la durée totale au compte à rebours.
   /// Valeur négative = perte de temps.
-  void addTime(double fraction) =>
-      _ctrl.value = (_ctrl.value - fraction).clamp(0.0, 1.0);
+  void addTime(double fraction) {
+    final wasRunning = _ctrl.isAnimating;
+    final nextValue = (_ctrl.value - fraction).clamp(0.0, 1.0);
+
+    // Sons selon le sens de variation
+    if (fraction > 0) {
+      SoundEffects.play(Sfx.redForming); // ou Sfx.proud
+    } else if (fraction < 0) {
+      SoundEffects.play(Sfx.beamIncorrect); // ou Sfx.redForming
+    }
+
+    _ctrl.value = nextValue;
+    if (nextValue >= 1.0) {
+      widget.onFinished?.call();
+      return;
+    }
+    if (wasRunning && widget.isTimerPausedNotifier?.value != true) {
+      _ctrl.forward();
+    }
+  }
 
   @override
   void dispose() {
+    widget.isTimerPausedNotifier?.removeListener(_onTimerPauseChanged);
+    isCriticalNotifier.dispose();
     _ctrl.dispose();
     _pulse.dispose();
     super.dispose();
@@ -69,12 +143,9 @@ class CharacterTimeGaugeState extends State<CharacterTimeGauge>
 
   /// Associe une humeur à chaque tranche de temps restant.
   Mood _moodFor(double r) {
-    if (r > 0.66) return Mood.happy;
-    if (r > 0.33) return Mood.angry;
-    if (r > 0.15){
-      SoundEffects.play(Sfx.alert);
-      return Mood.sad;
-    }
+    if (r > 0.66) return Mood.excited;
+    if (r > 0.33) return Mood.stressed;
+    if (r > 0.11 && r < 0.1) return Mood.disapointed;
     return Mood.sad;
   }
 
@@ -92,18 +163,18 @@ class CharacterTimeGaugeState extends State<CharacterTimeGauge>
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
-      builder: (context,constraints) {
+      builder: (context, constraints) {
         final cw = widget.characterSize.width;
-      final ch = widget.characterSize.height;
-      final bw = widget.barWidth;
+        final ch = widget.characterSize.height;
+        final bw = widget.barWidth;
 
-      // Available height, or 80% of the screen if the parent is unbounded.
-      final available = constraints.hasBoundedHeight
-          ? constraints.maxHeight
-          : MediaQuery.sizeOf(context).height * 0.8;
+        // Available height, or 80% of the screen if the parent is unbounded.
+        final available = constraints.hasBoundedHeight
+            ? constraints.maxHeight
+            : MediaQuery.sizeOf(context).height * 0.8;
 
-      // The tube takes the remaining height after the character.
-      final bh = widget.barHeight ?? math.max(0.0, available - ch);
+        // The tube takes the remaining height after the character.
+        final bh = widget.barHeight ?? math.max(0.0, available - ch);
 
         return SizedBox(
           width: cw,
@@ -114,12 +185,12 @@ class CharacterTimeGaugeState extends State<CharacterTimeGauge>
               final r = 1 - _ctrl.value;
               final glow = _glowColor(r);
               final fillHeight = bh * r;
-        
+
               // Pulsation plus rapide quand il reste peu de temps
               final urgency = r < 0.2 ? 1.0 : 0.0;
               final pulse = 0.55 + 0.45 * _pulse.value;
               final intensity = urgency > 0 ? 0.6 + 0.4 * _pulse.value : pulse;
-        
+
               return Stack(
                 clipBehavior: Clip.none,
                 children: [
@@ -142,7 +213,7 @@ class CharacterTimeGaugeState extends State<CharacterTimeGauge>
                       ),
                     ),
                   ),
-        
+
                   // Tube de verre sombre + contour néon
                   Positioned(
                     left: (cw - bw) / 2,
@@ -174,7 +245,7 @@ class CharacterTimeGaugeState extends State<CharacterTimeGauge>
                       ),
                     ),
                   ),
-        
+
                   // Niveau d'énergie (dégradé + lueur)
                   Positioned(
                     left: (cw - bw) / 2 + 3,
@@ -204,7 +275,7 @@ class CharacterTimeGaugeState extends State<CharacterTimeGauge>
                       ),
                     ),
                   ),
-        
+
                   // Étoiles / graduations lumineuses sur le tube
                   Positioned(
                     left: (cw - bw) / 2,
@@ -212,12 +283,10 @@ class CharacterTimeGaugeState extends State<CharacterTimeGauge>
                     width: bw,
                     height: bh,
                     child: IgnorePointer(
-                      child: CustomPaint(
-                        painter: _TicksPainter(color: glow),
-                      ),
+                      child: CustomPaint(painter: _TicksPainter(color: glow)),
                     ),
                   ),
-        
+
                   // Aura derrière le personnage
                   Positioned(
                     left: 0,
@@ -237,7 +306,7 @@ class CharacterTimeGaugeState extends State<CharacterTimeGauge>
                       ),
                     ),
                   ),
-        
+
                   // Personnage posé sur le niveau
                   Positioned(
                     left: 0,
@@ -247,6 +316,7 @@ class CharacterTimeGaugeState extends State<CharacterTimeGauge>
                     child: CharacterBackupWidget(
                       size: widget.characterSize,
                       mood: _moodFor(r),
+                      isPausedNotifier: widget.isTimerPausedNotifier,
                     ),
                   ),
                 ],
@@ -254,7 +324,7 @@ class CharacterTimeGaugeState extends State<CharacterTimeGauge>
             },
           ),
         );
-      }
+      },
     );
   }
 }
@@ -277,8 +347,11 @@ class _TicksPainter extends CustomPainter {
       final y = size.height * i / count;
       final long = i % 5 == 0;
       final len = long ? size.width * 0.45 : size.width * 0.25;
-      canvas.drawLine(Offset(size.width - len - 4, y),
-          Offset(size.width - 4, y), paint);
+      canvas.drawLine(
+        Offset(size.width - len - 4, y),
+        Offset(size.width - 4, y),
+        paint,
+      );
     }
   }
 

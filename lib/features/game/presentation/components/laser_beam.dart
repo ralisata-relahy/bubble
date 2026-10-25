@@ -1,3 +1,4 @@
+import 'trajectory_calculator.dart';
 // ignore_for_file: unused_field
 
 import 'dart:math' as math;
@@ -50,13 +51,19 @@ class LaserBeam extends PositionComponent with HasGameReference<BubbleGame> {
   double _edutainerScale = 1;
   Vector2 _shotOrigin = Vector2.zero();
   Vector2 _shotEnd = Vector2.zero();
+  List<Vector2> _shotPoints = [];
+  double _totalShotLength = 0;
   PositionComponent? _shotTargetComponent;
   LaserTarget? _shotLaserTarget;
   double _shotElapsed = 0;
   bool _shotReturning = false;
   bool _shotActive = false;
 
-  static const double _outboundDuration = 0.3;
+  /// Longueur du projectile laser de 1 cm (environ 38 pixels sur base 96 DPI).
+  static const double projectileLength = 3 * 96 / 2.54;
+
+  /// Vitesse de deplacement du projectile en pixels par seconde.
+  static const double _projectileSpeed = 900.0;
   static const double _returnDuration = 0.05;
 
   Size get _scaledEdutainerSize => Size(
@@ -124,6 +131,9 @@ class LaserBeam extends PositionComponent with HasGameReference<BubbleGame> {
   /// Ligne de réapparition des bulles, deux centimètres au-dessus du laser.
   double get bubbleRespawnY => _laserOrigin.y - _respawnOffset;
 
+  /// Origine exacte de depart du tir laser.
+  Vector2 get laserOriginPoint => _laserOrigin;
+
   PositionComponent? get hitTarget => _hitTarget;
 
   /// Adapte la mascotte et son panneau à l'espace disponible dans le canvas.
@@ -161,56 +171,16 @@ class LaserBeam extends PositionComponent with HasGameReference<BubbleGame> {
     _label?.position.y = edutainerSize.height / 2 + _labelGap;
   }
 
-  /// Lance un tir jusqu'au point demandé, arrêté par la première bulle rencontrée.
-  void fireAt(Vector2 targetPosition) {
-    if (_shotActive) return;
+  /// Lance un tir en suivant exactement la trajectoire precalculee de la visee.
+  void fireTrajectory(TrajectoryResult trajectory) {
+    if (_shotActive || trajectory.points.isEmpty) return;
     SoundEffects.play(Sfx.laser);
-    _shotOrigin = _laserOrigin;
-    final toTarget = targetPosition - _shotOrigin;
-    final distance = math.min(toTarget.length, maxLength);
-    if (distance < 1e-5) return;
-
-    final direction = toTarget.normalized();
-    var impactDistance = distance;
-    PositionComponent? impactTarget;
-    LaserTarget? laserTarget;
-
-    for (final obstacle in obstacles) {
-      final intersection = _intersectRect(
-        _shotOrigin,
-        direction,
-        obstacle.toAbsoluteRect(),
-      );
-      if (intersection != null &&
-          intersection > 0 &&
-          intersection < impactDistance) {
-        impactDistance = intersection;
-        impactTarget = null;
-      }
-    }
-
-    for (final component in game.children.whereType<PositionComponent>()) {
-      if (component is! LaserTarget) continue;
-      final target = component as LaserTarget;
-      if (!target.canReceiveLaserHit) continue;
-
-      final intersection = _intersectEllipse(
-        _shotOrigin,
-        direction,
-        component.toAbsoluteRect(),
-      );
-      if (intersection != null &&
-          intersection > 0 &&
-          intersection < impactDistance) {
-        impactDistance = intersection;
-        impactTarget = component;
-        laserTarget = target;
-      }
-    }
-
-    _shotEnd = _shotOrigin + direction * impactDistance;
-    _shotTargetComponent = impactTarget;
-    _shotLaserTarget = laserTarget;
+    _shotOrigin = trajectory.points.first.clone();
+    _shotPoints = List<Vector2>.from(trajectory.points);
+    _totalShotLength = trajectory.totalLength;
+    _shotEnd = trajectory.points.last.clone();
+    _shotTargetComponent = trajectory.hitComponent;
+    _shotLaserTarget = trajectory.hitLaserTarget;
     _shotElapsed = 0;
     _shotReturning = false;
     _shotActive = true;
@@ -218,11 +188,28 @@ class LaserBeam extends PositionComponent with HasGameReference<BubbleGame> {
     _endPoint = _shotOrigin.clone();
   }
 
+  /// Lance un tir le long de la trajectoire avec ricochets jusqu a la premiere cible rencontree.
+  void fireAt(Vector2 targetPosition) {
+    if (_shotActive) return;
+    final toTarget = targetPosition - _laserOrigin;
+    if (toTarget.length < 1e-4) return;
+
+    final trajectory = TrajectoryCalculator.calculate(
+      origin: _laserOrigin,
+      initialDirection: toTarget.normalized(),
+      gameWidth: game.size.x,
+      gameHeight: game.size.y,
+      potentialTargets: game.children.whereType<PositionComponent>(),
+      maxBounces: 2,
+      maxLength: maxLength,
+    );
+    fireTrajectory(trajectory);
+  }
+
   @override
   void update(double dt) {
     super.update(dt);
-
-    _animationTime += dt;
+    _animationTime += dt / game.simulationTimeSteps;
     _updateShot(dt);
   }
 
@@ -232,10 +219,6 @@ class LaserBeam extends PositionComponent with HasGameReference<BubbleGame> {
     _shotElapsed += dt;
     if (_shotReturning) {
       final progress = (_shotElapsed / _returnDuration).clamp(0.0, 1.0);
-      _endPoint = Vector2(
-        _shotEnd.x + (_shotOrigin.x - _shotEnd.x) * progress,
-        _shotEnd.y + (_shotOrigin.y - _shotEnd.y) * progress,
-      );
       if (progress >= 1) {
         _shotActive = false;
         _hitTarget = null;
@@ -243,12 +226,10 @@ class LaserBeam extends PositionComponent with HasGameReference<BubbleGame> {
       return;
     }
 
-    final progress = (_shotElapsed / _outboundDuration).clamp(0.0, 1.0);
-    _endPoint = Vector2(
-      _shotOrigin.x + (_shotEnd.x - _shotOrigin.x) * progress,
-      _shotOrigin.y + (_shotEnd.y - _shotOrigin.y) * progress,
-    );
-    if (progress >= 1) {
+    final headDist = _shotElapsed * _projectileSpeed;
+    _endPoint = _pointAlongPath(headDist.clamp(0.0, _totalShotLength));
+
+    if (headDist >= _totalShotLength) {
       _hitTarget = _shotTargetComponent;
       final target = _shotLaserTarget;
       if (target != null && target.canReceiveLaserHit) {
@@ -259,136 +240,111 @@ class LaserBeam extends PositionComponent with HasGameReference<BubbleGame> {
     }
   }
 
-  /// Distance at which a ray first enters an axis-aligned ellipse.
-  double? _intersectEllipse(Vector2 origin, Vector2 direction, Rect rect) {
-    final radiusX = rect.width / 2;
-    final radiusY = rect.height / 2;
-    if (radiusX <= 0 || radiusY <= 0) return null;
+  Vector2 _pointAlongPath(double targetDist) {
+    if (_shotPoints.isEmpty) return _shotOrigin;
+    if (targetDist <= 0) return _shotPoints.first;
 
-    final offsetX = (origin.x - rect.center.dx) / radiusX;
-    final offsetY = (origin.y - rect.center.dy) / radiusY;
-    final directionX = direction.x / radiusX;
-    final directionY = direction.y / radiusY;
-    final a = directionX * directionX + directionY * directionY;
-    final b = 2 * (offsetX * directionX + offsetY * directionY);
-    final c = offsetX * offsetX + offsetY * offsetY - 1;
-    final discriminant = b * b - 4 * a * c;
-    if (a <= 0 || discriminant < 0) return null;
+    var accumulated = 0.0;
+    for (var i = 0; i < _shotPoints.length - 1; i++) {
+      final p1 = _shotPoints[i];
+      final p2 = _shotPoints[i + 1];
+      final segLength = (p2 - p1).length;
 
-    final root = math.sqrt(discriminant);
-    final nearDistance = (-b - root) / (2 * a);
-    if (nearDistance >= 0) return nearDistance;
-
-    final farDistance = (-b + root) / (2 * a);
-    return farDistance >= 0 ? farDistance : null;
+      if (accumulated + segLength >= targetDist) {
+        final t = (targetDist - accumulated) / segLength;
+        return p1 + (p2 - p1) * t;
+      }
+      accumulated += segLength;
+    }
+    return _shotPoints.last;
   }
 
-  /// Ray / axis-aligned rectangle intersection.
-  double? _intersectRect(Vector2 origin, Vector2 direction, Rect rect) {
-    double? tMin;
-    double? tMax;
+  List<Vector2> _slicePath(double startDist, double endDist) {
+    if (_shotPoints.isEmpty || endDist <= 0) return [];
+    final start = math.max(0.0, startDist);
+    final end = math.min(_totalShotLength, endDist);
+    if (start >= end) return [];
 
-    if (direction.x.abs() < 1e-8) {
-      if (origin.x < rect.left || origin.x > rect.right) {
-        return null;
+    final result = <Vector2>[];
+    result.add(_pointAlongPath(start));
+
+    var accumulated = 0.0;
+    for (var i = 0; i < _shotPoints.length - 1; i++) {
+      final p1 = _shotPoints[i];
+      final p2 = _shotPoints[i + 1];
+      final segLength = (p2 - p1).length;
+      final segEnd = accumulated + segLength;
+
+      if (accumulated > start && accumulated < end) {
+        result.add(p1);
       }
-    } else {
-      final tx1 = (rect.left - origin.x) / direction.x;
-      final tx2 = (rect.right - origin.x) / direction.x;
-
-      tMin = math.min(tx1, tx2);
-      tMax = math.max(tx1, tx2);
+      accumulated = segEnd;
     }
-
-    if (direction.y.abs() < 1e-8) {
-      if (origin.y < rect.top || origin.y > rect.bottom) {
-        return null;
-      }
-    } else {
-      final ty1 = (rect.top - origin.y) / direction.y;
-      final ty2 = (rect.bottom - origin.y) / direction.y;
-
-      final tyMin = math.min(ty1, ty2);
-      final tyMax = math.max(ty1, ty2);
-
-      if (tMin == null) {
-        tMin = tyMin;
-        tMax = tyMax;
-      } else {
-        tMin = math.max(tMin, tyMin);
-        tMax = math.min(tMax!, tyMax);
-      }
-    }
-
-    if (tMin == null || tMax == null) {
-      return null;
-    }
-
-    if (tMax < 0 || tMin > tMax) {
-      return null;
-    }
-
-    return tMin >= 0 ? tMin : tMax;
+    result.add(_pointAlongPath(end));
+    return result;
   }
 
   @override
   void render(Canvas canvas) {
-    final startOffset = (_shotOrigin - position).toOffset();
-    final endOffset = (_endPoint - position).toOffset();
-    final direction = endOffset - startOffset;
-    final length = direction.distance;
-    if (_shotActive && length > 1e-5) {
-      final normal = Offset(-direction.dy, direction.dx) / length;
-      final flicker = 0.8 + 0.2 * math.sin(_animationTime * 22);
-      Path beam(double startWidth, double endWidth) => Path()
-        ..moveTo(
-          startOffset.dx + normal.dx * startWidth,
-          startOffset.dy + normal.dy * startWidth,
-        )
-        ..lineTo(
-          endOffset.dx + normal.dx * endWidth,
-          endOffset.dy + normal.dy * endWidth,
-        )
-        ..lineTo(
-          endOffset.dx - normal.dx * endWidth,
-          endOffset.dy - normal.dy * endWidth,
-        )
-        ..lineTo(
-          startOffset.dx - normal.dx * startWidth,
-          startOffset.dy - normal.dy * startWidth,
-        )
-        ..close();
+    if (_shotActive && !_shotReturning) {
+      final flicker = 0.85 + 0.15 * math.sin(_animationTime * 24);
+      final headDist = _shotElapsed * _projectileSpeed;
+      final tailDist = math.max(0.0, headDist - projectileLength);
 
-      canvas.drawPath(
-        beam(thickness * 2.6, thickness * 1.4),
-        Paint()
-          ..color = color.withValues(alpha: 0.45 * flicker)
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 7),
-      );
-      canvas.drawPath(
-        beam(thickness * 0.7, thickness * 0.35),
-        Paint()
-          ..shader = ui.Gradient.linear(startOffset, endOffset, [
-            Colors.white.withValues(alpha: flicker),
-            color.withValues(alpha: 0.9 * flicker),
-          ]),
-      );
+      // Decoupe le troncon de 1 cm le long de la trajectoire
+      final currentPoints = _slicePath(tailDist, headDist);
 
-      for (var i = 0; i < 3; i++) {
-        final u = (_animationTime * 1.4 + i / 3) % 1.0;
-        canvas.drawCircle(
-          Offset.lerp(startOffset, endOffset, u)!,
-          thickness * 0.9 * (1 - u * 0.4),
-          Paint()..color = Colors.white.withValues(alpha: 0.9 * flicker),
+      // Rendu des segments de faisceau
+      for (var i = 0; i < currentPoints.length - 1; i++) {
+        final startOffset = (currentPoints[i] - position).toOffset();
+        final endOffset = (currentPoints[i + 1] - position).toOffset();
+        final direction = endOffset - startOffset;
+        final length = direction.distance;
+        if (length < 1e-4) continue;
+
+        final normal = Offset(-direction.dy, direction.dx) / length;
+        Path beam(double startWidth, double endWidth) => Path()
+          ..moveTo(
+            startOffset.dx + normal.dx * startWidth,
+            startOffset.dy + normal.dy * startWidth,
+          )
+          ..lineTo(
+            endOffset.dx + normal.dx * endWidth,
+            endOffset.dy + normal.dy * endWidth,
+          )
+          ..lineTo(
+            endOffset.dx - normal.dx * endWidth,
+            endOffset.dy - normal.dy * endWidth,
+          )
+          ..lineTo(
+            startOffset.dx - normal.dx * startWidth,
+            startOffset.dy - normal.dy * startWidth,
+          )
+          ..close();
+
+        canvas.drawPath(
+          beam(thickness * 2.6, thickness * 1.4),
+          Paint()
+            ..color = color.withValues(alpha: 0.45 * flicker)
+            ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 7),
+        );
+        canvas.drawPath(
+          beam(thickness * 0.7, thickness * 0.35),
+          Paint()
+            ..shader = ui.Gradient.linear(startOffset, endOffset, [
+              Colors.white.withValues(alpha: flicker),
+              color.withValues(alpha: 0.9 * flicker),
+            ]),
         );
       }
     }
 
-    if (_shotActive) {
+    if (_shotActive && _shotReturning) {
+      final impactEndOffset = (_endPoint - position).toOffset();
       final impactColor = _hitTarget != null ? Colors.yellowAccent : color;
       final flicker = 0.8 + 0.2 * math.sin(_animationTime * 22);
       canvas.drawCircle(
-        endOffset,
+        impactEndOffset,
         20,
         Paint()
           ..color = impactColor.withValues(alpha: 0.5 * flicker)
@@ -396,7 +352,7 @@ class LaserBeam extends PositionComponent with HasGameReference<BubbleGame> {
       );
       final ring = (_animationTime * 1.2) % 1.0;
       canvas.drawCircle(
-        endOffset,
+        impactEndOffset,
         8 + ring * 24,
         Paint()
           ..style = PaintingStyle.stroke
@@ -408,7 +364,8 @@ class LaserBeam extends PositionComponent with HasGameReference<BubbleGame> {
       for (var i = 0; i < 8; i++) {
         final r = i.isEven ? radius : radius * 0.28;
         final angle = _animationTime * 2 + i * math.pi / 4;
-        final point = endOffset + Offset(math.cos(angle), math.sin(angle)) * r;
+        final point =
+            impactEndOffset + Offset(math.cos(angle), math.sin(angle)) * r;
         if (i == 0) {
           star.moveTo(point.dx, point.dy);
         } else {

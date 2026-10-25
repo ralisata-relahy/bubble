@@ -2,6 +2,7 @@ import 'package:flame/components.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:bubble/features/bubble/models/bubble_config.dart';
 import 'package:bubble/features/bubble/presentation/components/bubble.dart';
 import 'package:bubble/features/bubble/presentation/rendering/bubble_text_helper.dart';
 
@@ -20,6 +21,42 @@ void main() {
 
       expect(bubble.containsLaserPoint(Vector2(100, 100)), isFalse);
       expect(bubble.canReceiveLaserHit, isFalse);
+    });
+
+    test('declenche onTargetImpact lors dune bonne reponse', () {
+      var targetImpactCalled = false;
+      var wrongImpactCalled = false;
+
+      final bubble = Bubble(
+        position: Vector2(100, 100),
+        config: const BubbleConfig(text: 'Bonne'),
+        canPop: (text) => text == 'Bonne',
+        onTargetImpact: (_) => targetImpactCalled = true,
+        onWrongImpact: () => wrongImpactCalled = true,
+      );
+
+      bubble.pop();
+
+      expect(targetImpactCalled, isTrue);
+      expect(wrongImpactCalled, isFalse);
+    });
+
+    test('declenche onWrongImpact lors dune mauvaise reponse', () {
+      var targetImpactCalled = false;
+      var wrongImpactCalled = false;
+
+      final bubble = Bubble(
+        position: Vector2(100, 100),
+        config: const BubbleConfig(text: 'Mauvaise'),
+        canPop: (text) => text == 'Bonne',
+        onTargetImpact: (_) => targetImpactCalled = true,
+        onWrongImpact: () => wrongImpactCalled = true,
+      );
+
+      bubble.pop();
+
+      expect(targetImpactCalled, isFalse);
+      expect(wrongImpactCalled, isTrue);
     });
   });
 
