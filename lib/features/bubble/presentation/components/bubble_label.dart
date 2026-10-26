@@ -2,7 +2,9 @@ import 'package:flame/components.dart';
 import 'package:flutter/painting.dart';
 import 'package:bubble/features/bubble/presentation/rendering/bubble_text_helper.dart';
 
+/// Lays out and paints text inside a bubble's local coordinate space.
 class BubbleLabel extends PositionComponent {
+  /// Creates a label constrained to [box] and centered at [textCenter].
   BubbleLabel({
     required this._text,
     required this.box,      // available text box

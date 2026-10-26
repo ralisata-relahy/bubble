@@ -2,16 +2,14 @@ import 'dart:async';
 import 'dart:math' as math;
 import 'dart:typed_data';
 
-import 'audio_emotion/emotion_speaker.dart';
-
-import './game_audio.dart';
-
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/foundation.dart' show debugPrint;
 
+import 'audio_emotion/emotion_speaker.dart';
+import 'game_audio.dart';
 import 'sfx_generate.dart';
 
-// Every available sound, with its default volume and pitch behaviour
+/// Available generated sounds and their default playback settings.
 enum Sfx {
   burst,
   beamIncorrect(varyPitch: false),
@@ -43,27 +41,35 @@ enum Sfx {
 
   const Sfx({this.volume = 1.0, this.varyPitch = true});
 
+  /// Default gain used when playback does not supply a volume override.
   final double volume;
+
+  /// Whether repeated one-shot playback may receive a small pitch variation.
   final bool varyPitch;
 }
 
+/// Owns generated sound buffers and players for one application/game session.
+/// A player pool lets short effects overlap without allocating a player per hit.
 class SoundEffects {
-  SoundEffects._();
+  SoundEffects();
 
   static const _poolSize = 6;
+  static const _minimumPlaybackRate = 0.92;
+  static const _playbackRateVariation = 0.16;
+  static const _defaultTickGap = Duration(milliseconds: 45);
 
-  static final _bytes = <Sfx, Uint8List>{};
-  static final _loops = <Sfx, AudioPlayer>{};
-  static final _pool = <AudioPlayer>[];
-  static final _rnd = math.Random();
-  static Future<void>? _initFuture;
-  static bool _ready = false;
-  static int _lastTick = 0;
-  static int _next = 0;
+  final _bytes = <Sfx, Uint8List>{};
+  final _loops = <Sfx, AudioPlayer>{};
+  final _pool = <AudioPlayer>[];
+  final _random = math.Random();
+  Future<void>? _initFuture;
+  bool _ready = false;
+  /// Enables or suppresses playback without discarding the initialized cache.
+  bool enabled = true;
+  int _lastTick = 0;
+  int _nextPlayerIndex = 0;
 
-  static bool enabled = true;
-
-  static final Map<Sfx, Uint8List Function()> _builders = {
+  static const Map<Sfx, Uint8List Function()> _builders = {
     Sfx.burst: GameSfx.bubbleBurst,
     Sfx.beamIncorrect: GameSfx.beamIncorrect,
     Sfx.redForming: GameSfx.redBubbleForming,
@@ -93,14 +99,23 @@ class SoundEffects {
     Sfx.proud: EmotionSfx.proud,
   };
 
-  // Call once at startup. Safe to call several times.
-  static Future<void> init({Set<Sfx>? only}) =>
-      _initFuture ??= _init(only ?? Sfx.values.toSet()).catchError((Object e) {
-        _initFuture = null; // allow a retry after a failure
-        throw e;
-      });
+  /// Initializes the effect cache and player pool once for this service.
+  /// Await it before playback; calls made before initialization are ignored.
+  /// Pass [only] to synthesize a subset of sounds for a smaller client.
+  Future<void> init({Set<Sfx>? only}) =>
+      _initFuture ??= _initializeWithRetry(only ?? Sfx.values.toSet());
 
-  static Future<void> _init(Set<Sfx> wanted) async {
+  Future<void> _initializeWithRetry(Set<Sfx> wanted) async {
+    try {
+      await _init(wanted);
+    } catch (error, stackTrace) {
+      _initFuture = null;
+      Error.throwWithStackTrace(error, stackTrace);
+    }
+  }
+
+  Future<void> _init(Set<Sfx> wanted) async {
+    // Mix with other app audio rather than taking exclusive audio focus.
     await AudioPlayer.global.setAudioContext(
       AudioContextConfig(focus: AudioContextConfigFocus.mixWithOthers).build(),
     );
@@ -116,41 +131,46 @@ class SoundEffects {
     _ready = true;
   }
 
-  // Plays a one-shot sound (round-robin over a small player pool).
-  static Future<void> play(Sfx sfx, {double? volume, bool? varyPitch}) async {
+  /// Plays one effect using the next player in the pool.
+  /// It is a no-op while disabled, before initialization, or if [sfx] was
+  /// excluded from [init]. Playback errors are logged without interrupting play.
+  Future<void> play(Sfx sfx, {double? volume, bool? varyPitch}) async {
     if (!enabled || !_ready) return;
     final bytes = _bytes[sfx];
     if (bytes == null) return;
 
     try {
-      final p = _pool[_next];
-      _next = (_next + 1) % _pool.length;
-      await p.stop();
-      await p.setVolume(volume ?? sfx.volume);
+      final player = _pool[_nextPlayerIndex];
+      _nextPlayerIndex = (_nextPlayerIndex + 1) % _pool.length;
+      await player.stop();
+      await player.setVolume(volume ?? sfx.volume);
       if (varyPitch ?? sfx.varyPitch) {
-        await p.setPlaybackRate(0.92 + _rnd.nextDouble() * 0.16);
+        await player.setPlaybackRate(
+          _minimumPlaybackRate + _random.nextDouble() * _playbackRateVariation,
+        );
       } else {
-        await p.setPlaybackRate(1.0);
+        await player.setPlaybackRate(1.0);
       }
-      await p.play(BytesSource(bytes));
+      await player.play(BytesSource(bytes));
     } catch (e) {
       debugPrint('SFX play failed ($sfx): $e');
     }
   }
 
-  // Scroll/slider tick
-  static void tick({int minGapMs = 45}) {
+  /// Plays a rate-limited tick for scroll and slider interactions.
+  /// Throttling avoids a dense stream of overlapping sounds during a drag.
+  void tick({Duration minGap = _defaultTickGap}) {
     final now = DateTime.now().millisecondsSinceEpoch;
-    if (now - _lastTick < minGapMs) return;
+    if (now - _lastTick < minGap.inMilliseconds) return;
     _lastTick = now;
-    play(Sfx.tick);
+    unawaited(play(Sfx.tick));
   }
 
-  // Looping sounds (one dedicated player per looping sound)
+  /// Whether a dedicated looping player currently exists for [sfx].
+  bool isLooping(Sfx sfx) => _loops.containsKey(sfx);
 
-  static bool isLooping(Sfx sfx) => _loops.containsKey(sfx);
-
-  static Future<void> startLoop(Sfx sfx, {double? volume}) async {
+  /// Starts a loop with its own player so one-shots cannot interrupt it.
+  Future<void> startLoop(Sfx sfx, {double? volume}) async {
     if (!enabled || !_ready || _loops.containsKey(sfx)) return;
     final bytes = _bytes[sfx];
     if (bytes == null) return;
@@ -167,19 +187,20 @@ class SoundEffects {
     }
   }
 
-  static Future<void> stopLoop(Sfx sfx) async {
+  /// Stops and releases the dedicated player for [sfx], if active.
+  Future<void> stopLoop(Sfx sfx) async {
     final p = _loops.remove(sfx);
     if (p == null) return;
     try {
       await p.stop();
       await p.dispose();
-    } catch (_) {
-      // already stopped
+    } catch (error) {
+      debugPrint('SFX loop stop failed ($sfx): $error');
     }
   }
 
-  // Starts the loop if stopped, stops it if running. Returns the new state.
-  static Future<bool> toggleLoop(Sfx sfx, {double? volume}) async {
+  /// Toggles [sfx] and returns whether its loop is active afterward.
+  Future<bool> toggleLoop(Sfx sfx, {double? volume}) async {
     if (isLooping(sfx)) {
       await stopLoop(sfx);
       return false;
@@ -188,13 +209,15 @@ class SoundEffects {
     return isLooping(sfx);
   }
 
-  static Future<void> stopAllLoops() async {
+  /// Stops and releases every active loop.
+  Future<void> stopAllLoops() async {
     for (final sfx in _loops.keys.toList()) {
       await stopLoop(sfx);
     }
   }
 
-  static Future<void> dispose() async {
+  /// Stops loops, disposes pooled players, and clears cached audio buffers.
+  Future<void> dispose() async {
     await stopAllLoops();
     for (final p in _pool) {
       await p.dispose();
@@ -202,6 +225,8 @@ class SoundEffects {
     _pool.clear();
     _bytes.clear();
     _ready = false;
+    _nextPlayerIndex = 0;
+    _lastTick = 0;
     _initFuture = null;
   }
 }

@@ -7,12 +7,14 @@ import 'package:flutter/material.dart';
 import 'edutainer_context.dart';
 import 'paint_utils.dart';
 
-// The antenna
+/// Draws the saucer, antenna, and orb used as the character's laser origin.
 class SaucerPainter {
+  /// Creates the painter with shared pose and palette data.
   SaucerPainter(this.ctx);
   final EdutainerContext ctx;
   EdutainerPose get pose => ctx.pose;
 
+  /// Returns the orb position after applying its animation around the antenna.
   Offset get laserOrigin {
     const center = Offset(200, 165);
     final angle = math.sin(pose.time * 3) * 0.04;

@@ -3,7 +3,7 @@ import 'dart:math' as math;
 import 'package:flame/components.dart';
 import 'package:flutter/material.dart';
 
-/// Particule individuelle de confetti avec physique de chute et scintillement 3D.
+/// Simulates one falling, rotating confetti piece within the burst component.
 class _ConfettiParticle {
   _ConfettiParticle({
     required this.position,
@@ -25,7 +25,7 @@ class _ConfettiParticle {
 
   void update(double dt, double gravity) {
     velocity.y += gravity * dt;
-    // Frottement de l'air
+    // Scale drag by frame time so it behaves consistently at different rates.
     velocity.x *= math.pow(0.96, dt * 60).toDouble();
     velocity.y *= math.pow(0.98, dt * 60).toDouble();
 
@@ -39,7 +39,7 @@ class _ConfettiParticle {
     canvas.translate(position.x, position.y);
     canvas.rotate(angle);
 
-    // Effet de retournement 3D (flutter)
+    // Horizontal cosine scaling gives a cheap 3D flip without a shader.
     final scaleX = math.cos(wobble);
     canvas.scale(scaleX, 1.0);
 

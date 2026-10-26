@@ -3,14 +3,16 @@ import '../models/character_pose.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 
-/// A laser target with an optional text bubble
+/// A laser target in character coordinates with an optional text label.
 @immutable
 class EdutainerTarget {
+  /// Creates a target in the character's design coordinate space.
   const EdutainerTarget(this.position, [this.label]);
   final Offset position;
   final String? label;
 }
 
+/// Animates and paints the edutainer from a generated or supplied pose.
 class AiBudddyEdutainment extends StatefulWidget {
   const AiBudddyEdutainment({
     super.key,
@@ -60,6 +62,7 @@ class AiBudddyEdutainment extends StatefulWidget {
   State<AiBudddyEdutainment> createState() => _AiBudddyEdutainmentState();
 }
 
+/// Owns the ticker and interpolates between generated character poses.
 class _AiBudddyEdutainmentState extends State<AiBudddyEdutainment>
     with SingleTickerProviderStateMixin {
   late final Ticker _ticker;

@@ -1,6 +1,7 @@
+import 'dart:async';
 import 'dart:math' as math;
 
-import 'package:bubble/audio_generation/sound_effect.dart';
+import 'package:bubble/core/services/audio/sound_effect.dart';
 import 'package:bubble/features/curio/character_backup_widget.dart';
 import 'package:flutter/material.dart';
 
@@ -16,6 +17,7 @@ class CharacterTimeGauge extends StatefulWidget {
     this.autoStart = true,
     this.isCriticalNotifier,
     this.isTimerPausedNotifier,
+    this.soundEffects,
   });
 
   final Duration duration;
@@ -26,6 +28,7 @@ class CharacterTimeGauge extends StatefulWidget {
   final bool autoStart;
   final ValueNotifier<bool>? isCriticalNotifier;
   final ValueNotifier<bool>? isTimerPausedNotifier;
+  final SoundEffects? soundEffects;
 
   @override
   State<CharacterTimeGauge> createState() => CharacterTimeGaugeState();
@@ -34,6 +37,10 @@ class CharacterTimeGauge extends StatefulWidget {
 /// Contrôle les opérations de durée de vie du compte à rebours.
 class CharacterTimeGaugeState extends State<CharacterTimeGauge>
     with TickerProviderStateMixin {
+  static const _criticalTimeThreshold = 0.3;
+  static const _criticalAlertInterval = Duration(seconds: 1);
+  static const _pulseDuration = Duration(milliseconds: 1600);
+
   late final AnimationController _ctrl;
   late final AnimationController _pulse;
   final ValueNotifier<bool> isCriticalNotifier = ValueNotifier<bool>(false);
@@ -51,20 +58,27 @@ class CharacterTimeGaugeState extends State<CharacterTimeGauge>
     _ctrl = AnimationController(vsync: this, duration: widget.duration)
       ..addListener(() {
         final r = 1 - _ctrl.value;
-        final isCritical = r <= 0.3 && r > 0;
+        final isCritical = r <= _criticalTimeThreshold && r > 0;
+        // Notify the overlay only when the threshold changes; the gauge itself
+        // still follows the animation controller on every frame.
         if (isCriticalNotifier.value != isCritical) {
           isCriticalNotifier.value = isCritical;
         }
-        if (widget.isCriticalNotifier != null &&
-            widget.isCriticalNotifier!.value != isCritical) {
-          widget.isCriticalNotifier!.value = isCritical;
+        final externalCriticalNotifier = widget.isCriticalNotifier;
+        if (externalCriticalNotifier != null &&
+            externalCriticalNotifier.value != isCritical) {
+          externalCriticalNotifier.value = isCritical;
         }
 
         if (isCritical) {
           final now = DateTime.now().millisecondsSinceEpoch;
-          if (!_wasCritical || now - _lastAlertTimestamp >= 1000) {
+          // Repeat the alert at a fixed wall-clock interval rather than per frame.
+          if (!_wasCritical ||
+              now - _lastAlertTimestamp >=
+                  _criticalAlertInterval.inMilliseconds) {
             _lastAlertTimestamp = now;
-            SoundEffects.play(Sfx.alert);
+            final effects = widget.soundEffects;
+            if (effects != null) unawaited(effects.play(Sfx.alert));
           }
         } else {
           _lastAlertTimestamp = 0;
@@ -74,10 +88,8 @@ class CharacterTimeGaugeState extends State<CharacterTimeGauge>
       ..addStatusListener((status) {
         if (status == AnimationStatus.completed) widget.onFinished?.call();
       });
-    _pulse = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1600),
-    )..repeat(reverse: true);
+    _pulse = AnimationController(vsync: this, duration: _pulseDuration)
+      ..repeat(reverse: true);
     if (widget.autoStart) _ctrl.forward();
   }
 
@@ -90,7 +102,10 @@ class CharacterTimeGaugeState extends State<CharacterTimeGauge>
   }
 
   /// Redémarre, suspend ou reprend l'animation depuis le jeu.
-  void restart() {
+  void restart({Duration? duration}) {
+    if (duration!=null){
+      _ctrl.duration=duration;
+    }
     isCriticalNotifier.value = false;
     widget.isCriticalNotifier?.value = false;
     _lastAlertTimestamp = 0;
@@ -117,9 +132,11 @@ class CharacterTimeGaugeState extends State<CharacterTimeGauge>
 
     // Sons selon le sens de variation
     if (fraction > 0) {
-      SoundEffects.play(Sfx.redForming); // ou Sfx.proud
+      final effects = widget.soundEffects;
+      if (effects != null) unawaited(effects.play(Sfx.redForming));
     } else if (fraction < 0) {
-      SoundEffects.play(Sfx.beamIncorrect); // ou Sfx.redForming
+      final effects = widget.soundEffects;
+      if (effects != null) unawaited(effects.play(Sfx.beamIncorrect));
     }
 
     _ctrl.value = nextValue;
@@ -145,8 +162,8 @@ class CharacterTimeGaugeState extends State<CharacterTimeGauge>
   Mood _moodFor(double r) {
     if (r > 0.66) return Mood.excited;
     if (r > 0.33) return Mood.stressed;
-    if (r > 0.11 && r < 0.1) return Mood.disapointed;
-    return Mood.sad;
+    if (r > 0.01) return Mood.disapointed;
+    return Mood.sleepy;
   }
 
   /// Couleur néon principale selon le temps restant.

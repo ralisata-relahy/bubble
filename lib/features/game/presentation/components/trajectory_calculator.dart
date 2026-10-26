@@ -53,7 +53,7 @@ class TrajectoryCalculator {
     for (var bounce = 0; bounce <= maxBounces; bounce++) {
       if (remainingLength <= 0.01) break;
 
-      // 1. Verifie l'intersection la plus proche parmi les cibles eligibles
+      // Find the nearest eligible hit before comparing it with wall and edge events.
       double closestTargetDist = double.infinity;
       PositionComponent? closestComponent;
       LaserTarget? closestTarget;
@@ -103,7 +103,8 @@ class TrajectoryCalculator {
         if (d > 0.01) ceilingDist = d;
       }
 
-      // 4. Determine l'evenement le plus proche sur ce segment
+      // Only the nearest event can end this segment; later events are recalculated
+      // after a bounce from the new origin and direction.
       final minEventDist = math.min(
         closestTargetDist,
         math.min(wallDist, ceilingDist),
@@ -152,6 +153,8 @@ class TrajectoryCalculator {
     Vector2 direction,
     Rect rect,
   ) {
+    // Normalize the ray into unit-ellipse space, solve the quadratic there,
+    // then return the nearest forward intersection in the original ray units.
     final radiusX = rect.width / 2;
     final radiusY = rect.height / 2;
     if (radiusX <= 0 || radiusY <= 0) return null;

@@ -3,49 +3,47 @@ Bubble project structure
 
 Architecture
 ------------
-Source code is grouped by feature. Each feature keeps its content/data, domain
-models, and presentation code close together. Shared contracts and widgets live
-under core so features do not need to own cross-feature infrastructure.
+Code is organized by feature. Each feature keeps its data, domain logic,
+configuration, presentation, and feature-specific services together. Shared
+contracts, physics, UI primitives, and platform services live in core.
 
 Source tree
 -----------
 lib/
-|-- main.dart                         App bootstrap and top-level composition
+|-- main.dart                         Flutter app bootstrap and composition
 |-- core/
-|   |-- contracts/
-|   |   |-- knowledge_bubble_host.dart Game callbacks required by bubble entities
-|   |   `-- laser_target.dart          Contract for laser targets
-|   `-- presentation/widgets/
-|       `-- space_background.dart     Shared animated background
+|   |-- contracts/                    Shared component/game interfaces
+|   |-- physics/                      Reusable collision resolution
+|   |-- presentation/widgets/         Shared Flutter UI
+|   `-- services/
+|       |-- audio/                    Generated sound effects and audio facade
+|       `-- haptics_service.dart      Optional vibration integration
 `-- features/
-    |-- ai_buddy/                     Character drawing models and painters
+    |-- ai_buddy/                     Edutainer models, painters, and widgets
     |-- bubble/
-    |   |-- models/                   Bubble configuration and visual style
+    |   |-- models/                   Bubble motion and visual configuration
     |   `-- presentation/
-    |       |-- components/           Interactive Flame bubble entities
-    |       |-- rendering/            Bubble and cube rendering pipeline
-    |       `-- widgets/              Knowledge bubble presentation
-    |-- curio/
-    |   |-- presentation/widgets/     Character gauge and game overlay
-    |   |-- character_backup_widget.dart
-    |   `-- character_backup_painter.dart
+    |       |-- components/           Flame bubble entities, labels, and knowledge bubble
+    |       |-- rendering/            Bubble rendering and text layout
+    |       `-- widgets/              Flutter bubble widgets
+    |-- curio/                        Character, time gauge, overlays, voice service
     `-- game/
-        |-- data/game_questions.dart  Static game question catalog
-        |-- domain/models/            Typed game question model
-        `-- presentation/
-            |-- components/           Laser and game-specific Flame entities
-            |-- overlays/             Game overlays
-            `-- bubble_game.dart      Game lifecycle and round orchestration
+        |-- configuration/            Gameplay tuning values
+        |-- data/                     Question catalog
+        |-- domain/                    Question model and selection deck
+        |-- presentation/
+        |   |-- components/           Laser, aiming, confetti, knowledge scatter
+        |   |-- systems/              Game-world collision pass
+        |   `-- bubble_game.dart      Flame lifecycle and game coordination
+        `-- services/                 Question pronunciation playback
 
-Resources and project support
------------------------------
-- `assets/` contains images and sounds declared by `pubspec.yaml`.
-- `test/` contains Flutter tests.
-- `README.md` and `bubble_customization_guide.md` describe the project and bubble styles.
+test/                                 Unit, widget, and game-logic tests
 
 Dependency direction
 --------------------
-- `main.dart` composes the Flutter app, background, game, and overlay.
-- The game presentation layer reads typed question data and coordinates entities.
-- Bubble entities depend on core contracts rather than the concrete game class.
-- Rendering code consumes bubble models and does not own game progression.
+- `main.dart` composes Flutter and Flame features.
+- Game presentation coordinates components and delegates question selection,
+  collision passes, audio playback, and knowledge scatter to focused modules.
+- Bubble entities depend on core contracts and services, not on the concrete
+  game class.
+- Rendering consumes configuration and state; it does not own progression.

@@ -1,11 +1,12 @@
 import 'dart:math' as math;
 
 import '../models/character_pose.dart';
-import '../models/saucePalette.dart';
+import '../models/saucer_palette.dart';
 import 'package:flutter/material.dart';
 
-// Shared state + geometry used by every part painter.
+/// Shares the current pose, palette, and design-space transforms across painters.
 class EdutainerContext {
+  /// Builds the common paint state for one character frame.
   EdutainerContext({
     required this.pose,
     this.laserColor = const Color(0xFF4DF0FF),
@@ -28,6 +29,7 @@ class EdutainerContext {
   double get sx => 1 + pose.squash * 0.05;
   double get sy => 1 - pose.squash * 0.06;
 
+  /// Applies squash, tilt, and bob to a point in the character design space.
   Offset groupPoint(Offset p) {
     var q = p - pivot;
     q = Offset(q.dx * sx, q.dy * sy);

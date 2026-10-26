@@ -61,8 +61,8 @@ void main() {
 
       BubbleCollisionResolver.resolve(a, b, padding: 6.0);
 
-      final distanceApres = (b.position - a.position).length;
-      expect(distanceApres, greaterThanOrEqualTo(65.99));
+      final distanceAfterResolution = (b.position - a.position).length;
+      expect(distanceAfterResolution, greaterThanOrEqualTo(65.99));
     });
 
     test('inverse les composantes de vitesse le long de la normale', () {
@@ -120,10 +120,10 @@ void main() {
         waveFrequency: 2.0,
       )..waveTime = 0.5;
 
-      final posBeforeA = a.position.clone();
+      final positionBeforeA = a.position.clone();
       BubbleCollisionResolver.resolve(a, b);
 
-      expect(a.position.y, closeTo(posBeforeA.y, 0.01));
+      expect(a.position.y, closeTo(positionBeforeA.y, 0.01));
     });
   });
 }

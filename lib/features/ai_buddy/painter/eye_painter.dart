@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 
 import 'edutainer_context.dart';
 
-// The single eye
+/// Draws the eye and mood-dependent iris, lids, and expression details.
 class EyePainter {
   EyePainter(this.ctx);
   final EdutainerContext ctx;

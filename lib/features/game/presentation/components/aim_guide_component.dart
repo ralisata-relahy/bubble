@@ -22,11 +22,13 @@ class AimGuideComponent extends Component with HasGameReference {
   double _pulseTime = 0.0;
   bool _isVisible = false;
 
+  /// Stores a preview result and shows it only when it contains a segment.
   void updateTrajectory(TrajectoryResult? trajectory) {
     _trajectory = trajectory;
     _isVisible = trajectory != null && trajectory.points.length >= 2;
   }
 
+  /// Clears the preview so a later shot cannot reuse stale aim data.
   void hide() {
     _isVisible = false;
     _trajectory = null;

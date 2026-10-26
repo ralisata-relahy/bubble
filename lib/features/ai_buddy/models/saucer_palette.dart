@@ -1,7 +1,6 @@
-// ignore_for_file: file_names
-
 import 'package:flutter/material.dart';
 
+/// Color roles used to shade the saucer and its glowing orb consistently.
 class SaucerPalette {
   const SaucerPalette({
     required this.stem,
@@ -22,6 +21,7 @@ class SaucerPalette {
   final Color ringGlow, orbitArc, orbGlow;
   final Color orbLight, orbMid, orbDark;
 
+  /// Derives coordinated highlights and shadows from [base] when provided.
   factory SaucerPalette.from(Color? base) {
     if (base == null) {
       return const SaucerPalette(

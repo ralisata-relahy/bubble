@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-
+import '../../../game/configuration/game_configuration.dart';
 import 'character_time_gauge.dart';
 import '../../../game/presentation/bubble_game.dart';
 
@@ -13,6 +13,7 @@ class CurioOverlay extends StatefulWidget {
   State<CurioOverlay> createState() => _CurioOverlayState();
 }
 
+/// Coordinates the critical-state border flash and the timer layout.
 class _CurioOverlayState extends State<CurioOverlay>
     with SingleTickerProviderStateMixin {
   late final AnimationController _flashCtrl;
@@ -71,7 +72,8 @@ class _CurioOverlayState extends State<CurioOverlay>
                 key: widget.game.gaugeKey,
                 isCriticalNotifier: widget.game.isCriticalNotifier,
                 isTimerPausedNotifier: widget.game.isTimerPausedNotifier,
-                duration: const Duration(seconds: 30),
+                soundEffects: widget.game.soundEffects,
+                duration: GameConfiguration.gameDuration,
                 barHeight: availableHeight - 230,
                 barWidth: 15,
                 characterSize: const Size(90, 94),

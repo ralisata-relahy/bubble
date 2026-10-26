@@ -40,6 +40,7 @@ class BubbleWidget extends StatelessWidget {
   }
 }
 
+/// Paints a styled bubble and fits its label into the available canvas.
 class BubblePainter extends CustomPainter {
   BubblePainter({
     required this.style,

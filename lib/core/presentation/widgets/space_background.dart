@@ -45,6 +45,7 @@ class SpaceBackground extends StatelessWidget {
   }
 }
 
+/// Stores one star in normalized coordinates for a responsive background.
 class _Star {
   final double x; // 0..1 (position relative)
   final double y; // 0..1
@@ -95,6 +96,7 @@ List<_Star> _generateStars(
   return result;
 }
 
+/// Paints the seeded star field once behind the live game surface.
 class _SpacePainter extends CustomPainter {
   final double density;
   final int seed;

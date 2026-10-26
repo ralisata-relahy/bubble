@@ -22,6 +22,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
+/// Named expressions supported by Curio's animated painter.
 enum Mood {
   happy,
   excited,
@@ -40,6 +41,7 @@ enum Mood {
 // Paramètres d'humeur
 // =============================================================================
 
+/// Indexed parameter keys shared by default values and mood-specific presets.
 enum _K {
   // yeux
   lid, // 0 ouvert .. 1 fermé (paupière au repos)
@@ -80,6 +82,7 @@ enum _K {
   anger,
 }
 
+/// Compact immutable values used to interpolate between mood presets.
 class MoodParams {
   MoodParams._(this._v);
 
@@ -95,6 +98,7 @@ class MoodParams {
   /// Paramètres d'une humeur donnée.
   factory MoodParams.of(Mood mood) => _presets[mood]!;
 
+  /// Interpolates every pose parameter for a smooth mood transition.
   static MoodParams lerp(MoodParams a, MoodParams b, double t) {
     return MoodParams._([
       for (var i = 0; i < a._v.length; i++) a._v[i] + (b._v[i] - a._v[i]) * t,
@@ -351,6 +355,7 @@ final Map<Mood, MoodParams> _presets = {
 // Outils de dessin
 // =============================================================================
 
+/// Builds a paint object from the bounds of one character feature.
 typedef _P = Paint Function(Rect box);
 
 Color _c(int rgb, [double opacity = 1.0]) => Color.fromRGBO(
@@ -587,6 +592,7 @@ Path _heartPath() => Path()
 // Peintre animé
 // =============================================================================
 
+/// Paints Curio's complete animated character from a normalized mood pose.
 class CharacterBackupPainter extends CustomPainter {
   CharacterBackupPainter({
     required this.time,

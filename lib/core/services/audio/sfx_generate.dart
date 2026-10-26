@@ -1,14 +1,16 @@
 import 'dart:math' as math;
 import 'dart:typed_data';
 
+/// Converts simple oscillators and noise into PCM sample buffers and WAV data.
 class SfxSynth {
+  /// Sample rate shared by generated buffers and WAV headers.
   static const int sampleRate = 44100;
 
-  // Silence, used to leave a pause at the end of a looping sound.
+  /// Creates silent samples for a pause between parts of a sound.
   static Float64List silence(double seconds) =>
       Float64List((sampleRate * seconds).toInt());
 
-  // Frequency sweep with an envelope.
+  /// Generates a linear frequency sweep with a soft envelope.
   static Float64List sweep({
     required double startHz,
     required double endHz,
@@ -29,7 +31,7 @@ class SfxSynth {
     return out;
   }
 
-  // Flexible tone: exponential pitch sweep, soft attack, exponential decay.
+  /// Generates a tone with exponential pitch movement and decay.
   static Float64List tone({
     required double startHz,
     required double endHz,
@@ -55,7 +57,7 @@ class SfxSynth {
     return out;
   }
 
-  // Noise burst with exponential decay.
+  /// Generates an unfiltered noise burst with exponential decay.
   static Float64List noise({required double seconds, double volume = 0.5}) {
     final rnd = math.Random();
     final n = (sampleRate * seconds).toInt();
@@ -67,7 +69,7 @@ class SfxSynth {
     return out;
   }
 
-  // Low-passed noise (soft "pff" instead of harsh static).
+  /// Generates smoothed noise for soft impacts and airy sounds.
   static Float64List softNoise({
     required double seconds,
     double volume = 0.5,
@@ -87,7 +89,7 @@ class SfxSynth {
     return out;
   }
 
-  // Bell/chime note: fundamental + decaying harmonics.
+  /// Generates a chime from a fundamental and decaying harmonics.
   static Float64List chime({
     required double hz,
     required double seconds,
@@ -108,7 +110,7 @@ class SfxSynth {
     return out;
   }
 
-  // Mix several buffers (different lengths allowed).
+  /// Adds buffers sample by sample, extending the result to the longest input.
   static Float64List mix(List<Float64List> buffers) {
     final len = buffers.map((b) => b.length).reduce(math.max);
     final out = Float64List(len);
@@ -120,7 +122,7 @@ class SfxSynth {
     return out;
   }
 
-  // Place a buffer after a delay.
+  /// Returns [b] preceded by [seconds] of silence.
   static Float64List delay(Float64List b, double seconds) {
     final offset = (sampleRate * seconds).toInt();
     final out = Float64List(offset + b.length);
@@ -148,7 +150,7 @@ class SfxSynth {
     }
   }
 
-  // Convert samples to a 16-bit mono WAV in memory.
+  /// Encodes normalized samples as a 16-bit mono WAV byte buffer.
   static Uint8List toWav(Float64List samples) {
     final dataSize = samples.length * 2;
     final bytes = ByteData(44 + dataSize);
@@ -180,11 +182,12 @@ class SfxSynth {
   }
 }
 
+/// Oscillator shapes accepted by the sound synthesis helpers.
 enum Wave { sine, square, saw, triangle }
 
-// Synthesized game and interface sounds.
+/// Generates the short WAV effects used by gameplay and interface controls.
 class GameSfx {
-  // Bubble pop: a tiny soft click plus a quick rising "bloop" chirp.
+  /// Builds a soft click followed by a short rising bubble-pop chirp.
   static Uint8List bubbleBurst() => SfxSynth.toWav(
     SfxSynth.mix([
       SfxSynth.softNoise(seconds: 0.03, volume: 0.6, decay: 5, smoothing: 0.6),
@@ -208,7 +211,7 @@ class GameSfx {
     ]),
   );
 
-  // Soft "uh-oh": two gentle descending sine notes, no buzz.
+  /// Builds a gentle two-note cue for an incorrect hit.
   static Uint8List beamIncorrect() => SfxSynth.toWav(
     SfxSynth.mix([
       SfxSynth.tone(
@@ -233,11 +236,12 @@ class GameSfx {
     ]),
   );
 
+  /// Builds the rising swell used while a bubble turns red.
   static Uint8List redBubbleForming() => SfxSynth.toWav(
     SfxSynth.sweep(startHz: 200, endHz: 650, seconds: 0.45, volume: 0.5),
   );
 
-  // Short, bright laser zap with a sharp attack and a fast falling pitch.
+  /// Builds a bright laser zap with a sharp attack and falling pitch.
   static Uint8List laser() => SfxSynth.toWav(
     SfxSynth.mix([
       SfxSynth.noise(seconds: 0.025, volume: 0.18),
@@ -264,7 +268,7 @@ class GameSfx {
     ]),
   );
 
-  // "Correct answer" chime: quick rising C-E-G arpeggio, last note rings.
+  /// Builds a rising confirmation chime for a correct answer.
   static Uint8List beamCorrect() => SfxSynth.toWav(
     SfxSynth.mix([
       SfxSynth.chime(hz: 1046.5, seconds: 0.35), // C6
@@ -276,6 +280,7 @@ class GameSfx {
     ]),
   );
 
+  /// Builds the paired sweeps used when a bubble splits.
   static Uint8List bubbleSplit() => SfxSynth.toWav(
     SfxSynth.mix([
       SfxSynth.sweep(startHz: 700, endHz: 800, seconds: 0.07, volume: 0.5),
@@ -286,7 +291,7 @@ class GameSfx {
     ]),
   );
 
-  // Heavy alert: one single strike (all layers start together), then a pause.
+  /// Builds a layered alert strike followed by silence for loop spacing.
   static Uint8List alert() => SfxSynth.toWav(
     SfxSynth.mix([
       // Main bell tone (E5), long ring.
@@ -331,7 +336,7 @@ class GameSfx {
     ]),
   );
 
-  // Basic click: a soft, low "thock" instead of a sharp tick.
+  /// Builds a soft interface click.
   static Uint8List click() => SfxSynth.toWav(
     SfxSynth.mix([
       SfxSynth.tone(
@@ -351,7 +356,7 @@ class GameSfx {
     ]),
   );
 
-  // Switch ON: two quick rising blips.
+  /// Builds a pair of rising notes for switching a control on.
   static Uint8List switchOn() => SfxSynth.toWav(
     SfxSynth.mix([
       SfxSynth.tone(
@@ -374,7 +379,7 @@ class GameSfx {
     ]),
   );
 
-  // Switch OFF: the same idea, falling.
+  /// Builds a pair of falling notes for switching a control off.
   static Uint8List switchOff() => SfxSynth.toWav(
     SfxSynth.mix([
       SfxSynth.tone(
@@ -397,7 +402,7 @@ class GameSfx {
     ]),
   );
 
-  // Scroll tick: tiny and quiet, meant to fire many times.
+  /// Builds a quiet tick for frequent scroll or slider feedback.
   static Uint8List tick() => SfxSynth.toWav(
     SfxSynth.tone(
       startHz: 2600,
@@ -409,7 +414,7 @@ class GameSfx {
     ),
   );
 
-  // Pop-up open: a soft rising "bloop" with a light sparkle.
+  /// Builds a soft rising cue for opening a popup.
   static Uint8List popupOpen() => SfxSynth.toWav(
     SfxSynth.mix([
       SfxSynth.tone(
@@ -433,7 +438,7 @@ class GameSfx {
     ]),
   );
 
-  // Pop-up close: the open sound reversed in pitch.
+  /// Builds a descending cue for closing a popup.
   static Uint8List popupClose() => SfxSynth.toWav(
     SfxSynth.tone(
       startHz: 900,

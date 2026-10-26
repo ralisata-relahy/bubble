@@ -5,8 +5,10 @@ import 'package:flame/components.dart';
 
 import 'package:bubble/features/bubble/models/bubble_style.dart';
 
+/// Cardinal movement directions supported by a bubble.
 enum BubbleDirection { leftToRight, rightToLeft, bottomToTop, topToBottom }
 
+/// Immutable motion, text, and rendering settings for a bubble component.
 class BubbleConfig {
   const BubbleConfig({
     this.style = const BubbleStyle(),
@@ -34,6 +36,7 @@ class BubbleConfig {
   final int maxLines;
   final bool autoFit;
 
+  /// Uses a normalized custom vector when supplied, otherwise maps [direction].
   Vector2 get directionVector {
     final custom = customDirection;
     if (custom != null && custom.length2 > 0) return custom.normalized();
@@ -45,6 +48,7 @@ class BubbleConfig {
     };
   }
 
+  /// Creates varied motion and appearance settings for previews or prototypes.
   factory BubbleConfig.random(Random rng, {BubbleDirection? direction}) {
     final w = 80 + rng.nextDouble() * 80;
     return BubbleConfig(

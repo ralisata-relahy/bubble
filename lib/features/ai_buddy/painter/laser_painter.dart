@@ -9,7 +9,7 @@ import 'edutainer_context.dart';
 import 'paint_utils.dart';
 import 'saucer_painter.dart';
 
-// Laser beams
+/// Draws animated laser beams and impact labels for pose targets.
 class LaserPainter {
   LaserPainter(this.ctx);
   final EdutainerContext ctx;

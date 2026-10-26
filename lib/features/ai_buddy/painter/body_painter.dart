@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'edutainer_context.dart';
 
-// The big round body with its lighting.
+/// Draws the character's body silhouette and layered highlights.
 class BodyPainter {
   BodyPainter(this.ctx);
   final EdutainerContext ctx;

@@ -6,7 +6,7 @@ import 'package:flutter/material.dart';
 import 'edutainer_context.dart';
 import 'paint_utils.dart';
 
-// Drop shadow and the two feet.
+/// Draws the ground shadow and animated feet beneath the character.
 class GroundPainter {
   GroundPainter(this.ctx);
   final EdutainerContext ctx;

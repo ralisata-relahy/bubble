@@ -23,5 +23,7 @@ class GameQuestion {
 
   /// Notions libérées après une bonne réponse.
   final List<String> knowledge;
+
+  /// Optional asset filename for the spoken answer.
   final String? nameAudio;
 }

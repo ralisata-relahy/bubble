@@ -26,8 +26,9 @@ void _fadeOut(Float64List out, double seconds) {
   }
 }
 
-// Splash screen sting
+/// Builds the short musical cue played when the game opens.
 class SplashSfx {
+  /// Returns the opening sting as a WAV buffer.
   static Uint8List splash() {
     final out = _blank(2.8);
 
@@ -94,10 +95,13 @@ class SplashSfx {
   }
 }
 
-// Cartoonish background music
+/// Builds the looping eight-bar background music bed.
 class GameMusic {
+  /// Tempo of the generated loop in beats per minute.
   static const double bpm = 132;
+  /// Duration of one beat in seconds.
   static const double beat = 60 / bpm;
+  /// Number of bars in the loop before playback repeats.
   static const int bars = 8;
 
   // Root of the bass
@@ -127,6 +131,7 @@ class GameMusic {
     [79, 0, 77, 76, 74, 0, 67, 0],
   ];
 
+  /// Synthesizes one complete loop as a WAV buffer.
   static Uint8List cartoonLoop() {
     final total = bars * 4 * beat;
     final out = _blank(total);

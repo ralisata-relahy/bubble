@@ -1,17 +1,17 @@
-// ignore_for_file: implementation_imports, unused_field
+// ignore_for_file: unused_field
 
+import 'dart:async';
 import 'dart:math';
 import 'dart:math' as math;
 import 'dart:ui';
 
-import 'package:bubble/audio_generation/sound_effect.dart';
+import 'package:bubble/core/services/audio/sound_effect.dart';
+import 'package:bubble/core/services/haptics_service.dart';
 import 'package:flame/components.dart';
 import 'package:flame/game.dart';
 import 'package:flutter/material.dart'
-    show Canvas, FontWeight, Colors, RadialGradient;
-import 'package:flutter/src/painting/text_style.dart';
+    show Canvas, Colors, FontWeight, RadialGradient, TextStyle;
 import 'package:google_fonts/google_fonts.dart';
-import 'package:vibration/vibration.dart';
 
 import 'package:bubble/core/contracts/knowledge_bubble_host.dart';
 import 'package:bubble/core/contracts/laser_target.dart';
@@ -36,7 +36,10 @@ class Bubble extends PositionComponent
     this.isBurstBubble = false,
     this.onTargetImpact,
     this.onWrongImpact,
+    this.onPopped,
     Random? random,
+    this.soundEffects,
+    this.hapticsService,
   }) : _random = random ?? Random(),
        super(
          position: position,
@@ -61,6 +64,13 @@ class Bubble extends PositionComponent
 
   /// Callback declenche lorsque le laser touche une bulle qui n'est pas la bonne reponse.
   final void Function()? onWrongImpact;
+
+  /// Called once when the laser first pops this bubble, before its removal.
+  final void Function(String text, bool wasTarget)? onPopped;
+
+  /// Services optionnels pour les effets d'impact de cette bulle.
+  final SoundEffects? soundEffects;
+  final HapticsService? hapticsService;
 
   /// Predicat par defaut validant les reponses vraies.
   static bool _defaultCanPop(String t) {
@@ -117,7 +127,10 @@ class Bubble extends PositionComponent
   double get collisionRadius => (size.x + size.y) / 4;
 
   /// Resout la collision elastique entre deux bulles grace au module physique partage.
-  void checkAndResolveCollision(dynamic other, {double padding = 6.0}) {
+  void checkAndResolveCollision(
+    dynamic other, {
+    double padding = BubbleCollisionResolver.defaultPadding,
+  }) {
     if (other is BubblePhysicsBody) {
       BubbleCollisionResolver.resolve(this, other, padding: padding);
     }
@@ -142,6 +155,7 @@ class Bubble extends PositionComponent
 
   // ── Etat d'animation d'explosion ──
   bool _isPopping = false;
+  bool _hasReportedPop = false;
   double _popProgress = 0.0;
   static const double _popDuration = 0.3;
   static const double _holeDuration = 0.1;
@@ -149,6 +163,7 @@ class Bubble extends PositionComponent
 
   /// Delai d'attente avant la reapparition d'une mauvaise bulle en rouge.
   static const double _returnDelay = 0.5;
+  static const int _wrongImpactVibrationDurationMs = 50;
   bool _returnsAfterPop = false;
 
   // ── Etat de masquage temporaire ──
@@ -221,16 +236,6 @@ class Bubble extends PositionComponent
   }();
 
   // ── Prise en charge de la vibration haptique ──
-  static bool _canVibrate = false;
-  static bool _vibrationChecked = false;
-
-  /// Verifie une seule fois la disponibilite du vibreur.
-  static Future<void> _checkVibration() async {
-    if (_vibrationChecked) return;
-    _vibrationChecked = true;
-    _canVibrate = await Vibration.hasVibrator();
-  }
-
   /// Met a jour le texte affiche.
   set text(String value) {
     _text = value;
@@ -258,11 +263,18 @@ class Bubble extends PositionComponent
   /// Declenche l'effet sonore approprie et une vibration en cas d'erreur.
   void playEffect() {
     if (isTarget) {
-      SoundEffects.play(Sfx.beamCorrect);
+      final effects = soundEffects;
+      if (effects != null) unawaited(effects.play(Sfx.beamCorrect));
     } else {
-      if (_canVibrate) Vibration.vibrate(duration: 50);
-      SoundEffects.play(Sfx.burst);
-      SoundEffects.play(Sfx.redForming);
+      unawaited(
+        hapticsService?.vibrate(duration: _wrongImpactVibrationDurationMs) ??
+            Future<void>.value(),
+      );
+      final effects = soundEffects;
+      if (effects != null) {
+        unawaited(effects.play(Sfx.burst));
+        unawaited(effects.play(Sfx.redForming));
+      }
     }
   }
 
@@ -274,6 +286,11 @@ class Bubble extends PositionComponent
 
     final targetWasHit = isTarget;
     _returnsAfterPop = !targetWasHit;
+
+    if (!_hasReportedPop) {
+      _hasReportedPop = true;
+      onPopped?.call(_text, targetWasHit);
+    }
 
     if (targetWasHit) {
       // Fige immediatement le jeu et le timer des le premier contact victorieux
@@ -412,7 +429,6 @@ class Bubble extends PositionComponent
   /// Initialise les composants graphiques et la trajectoire lors du chargement.
   @override
   Future<void> onLoad() async {
-    _checkVibration();
     _renderer = BubbleRenderer(config.style);
     _dir = config.directionVector;
     _perp = Vector2(-_dir.y, _dir.x);
@@ -827,4 +843,3 @@ class _PopParticle {
   final Color color;
   final bool big;
 }
-

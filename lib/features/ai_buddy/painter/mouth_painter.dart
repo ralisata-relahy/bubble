@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 
 import 'edutainer_context.dart';
 
-// Mouth, tongue and the symbols written on the tongue.
+/// Draws the mouth, tongue, and educational symbols for the current mood.
 class MouthPainter {
   MouthPainter(this.ctx);
   final EdutainerContext ctx;

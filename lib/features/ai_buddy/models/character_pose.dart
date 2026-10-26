@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
+/// Built-in animation presets and their relative playback speeds.
 enum EdutainerEmotion {
   normal(speed: 1.0),
   angry(speed: 1.5),
@@ -8,9 +9,12 @@ enum EdutainerEmotion {
   sad(speed: 0.6);
 
   const EdutainerEmotion({required this.speed});
+
+  /// Relative animation speed applied to this emotion preset.
   final double speed;
 }
 
+/// Immutable values that describe one animated frame of the edutainer.
 @immutable
 class EdutainerPose {
   const EdutainerPose({
@@ -43,6 +47,7 @@ class EdutainerPose {
   final List<Offset> targets;
   final List<String> labels;
 
+  /// Returns a pose with selected values replaced and all others preserved.
   EdutainerPose copyWith({
     double? time,
     double? bob,
@@ -85,7 +90,7 @@ class EdutainerPose {
     labels: labels ?? this.labels,
   );
 
-  /// Overrides the face fields according to [e].
+  /// Returns a pose with the facial values set for [e].
   EdutainerPose withEmotion(EdutainerEmotion e) {
     switch (e) {
       case EdutainerEmotion.normal:

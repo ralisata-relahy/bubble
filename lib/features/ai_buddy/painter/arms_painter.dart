@@ -6,12 +6,13 @@ import 'package:flutter/material.dart';
 import 'edutainer_context.dart';
 import 'paint_utils.dart';
 
-// Raised arm and lowered arm.
+/// Draws the character's animated raised and lowered arms.
 class ArmsPainter {
   ArmsPainter(this.ctx);
   final EdutainerContext ctx;
   EdutainerPose get pose => ctx.pose;
 
+  /// Paints each arm and emits a small burst from the waving hand.
   void paint(Canvas canvas) {
     // raised arm
     var a = deg(-150) + pose.waveArm * 0.3;

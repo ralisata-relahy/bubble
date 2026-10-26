@@ -18,6 +18,7 @@ const double _speedUp = 1.7;
 const _bw = [90.0, 110.0, 160.0];
 const _fGain = [1.0, 0.55, 0.25];
 
+/// Vowels used to select formant frequencies while synthesizing speech.
 enum _V { a, e, i, o, u }
 
 // Formant frequencies (Hz) of each vowel: how the "mouth" is shaped.
@@ -75,6 +76,7 @@ class _Syl {
   final double growl, growlHz, jitter, decay, attack, release;
 }
 
+/// Synthesizes short voice-like sounds for Curio's emotional reactions.
 class EmotionSfx {
   // VOICE ENGINE
 
@@ -247,7 +249,7 @@ class EmotionSfx {
 
   // EMOTIONS (character voice)
 
-  // Very Happy: "woo-hoo!" a rising "woo", a breath, then a higher, longer "hoo".
+  /// Synthesizes Curio's bright, rising "woo-hoo" reaction.
   static Uint8List veryHappy() => _wav(
     _speak(const [
       _Syl(
@@ -283,7 +285,7 @@ class EmotionSfx {
     ]),
   );
 
-  // Very Disappointed: one long, drooping "oooooo".
+  /// Synthesizes Curio's long, drooping disappointed reaction.
   static Uint8List veryDisappointed() => _wav(
     _speak(const [
       _Syl(
@@ -301,8 +303,8 @@ class EmotionSfx {
     ]),
   );
 
-  // Angry / Frustrated: low rough "grrr... grrr... HAH!"
-  // size 0.9 keeps the mouth big so it stays deep after the speed-up.
+  /// Synthesizes a low, rough angry reaction.
+  /// The larger mouth setting keeps the voice low after playback speed-up.
   static Uint8List angry() => _wav(
     _speak(const [
       _Syl(
@@ -347,7 +349,7 @@ class EmotionSfx {
     ]),
   );
 
-  // Very Surprised: "woahhhh", fast rise, held "ah", slow fall.
+  /// Synthesizes a fast-rising, sustained surprised reaction.
   static Uint8List verySurprised() => _wav(
     _speak(const [
       _Syl(
@@ -365,7 +367,7 @@ class EmotionSfx {
     ]),
   );
 
-  // Excited / Energetic: giggly "ha-ha-ha-YAY!"
+  /// Synthesizes a quick, energetic celebratory reaction.
   static Uint8List excited() => _wav(
     _speak(<_Syl>[
       for (int i = 0; i < 3; i++)
@@ -392,7 +394,7 @@ class EmotionSfx {
     ]),
   );
 
-  // Satisfied / Relaxed: warm "mmm... aaah", settling down.
+  /// Synthesizes a relaxed reaction that settles into a long vowel.
   static Uint8List satisfied() => _wav(
     _speak(const [
       _Syl(
@@ -420,7 +422,7 @@ class EmotionSfx {
     ]),
   );
 
-  // Stressed / Rushed: nervous breathy "uh-uh-uh-uh", faster and faster. Loops.
+  /// Synthesizes a breathy, accelerating nervous reaction for looping playback.
   static Uint8List stressed() {
     final syllables = <_Syl>[];
     double t = 0;
@@ -454,7 +456,7 @@ class EmotionSfx {
     return _wav(padded);
   }
 
-  // Proud / Triumphant: confident "yesssss", a bright "ye" into a long hiss.
+  /// Synthesizes a confident reaction ending in a sustained airy sound.
   static Uint8List proud() {
     final voice = _speak(const [
       _Syl(

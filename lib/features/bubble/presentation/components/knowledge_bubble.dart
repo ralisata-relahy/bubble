@@ -140,8 +140,12 @@ class KnowledgeBubbleComponent extends PositionComponent
     // Assure une trajectoire purement verticale vers le haut ou vers le bas
     // pour sortir uniquement par le haut ou le bas de l'ecran.
     final goUp = _dir.y < 0 || (_dir.y == 0 && _random.nextBool());
-    final angleVariation = (_random.nextDouble() - 0.5) * 0.4; // Legere dispersion angulaire
-    _dir = Vector2(sin(angleVariation), goUp ? -cos(angleVariation) : cos(angleVariation)).normalized();
+    final angleVariation =
+        (_random.nextDouble() - 0.5) * 0.4; // Legere dispersion angulaire
+    _dir = Vector2(
+      sin(angleVariation),
+      goUp ? -cos(angleVariation) : cos(angleVariation),
+    ).normalized();
 
     _perp = Vector2(-_dir.y, _dir.x);
     _centerBase = position.clone();
@@ -235,10 +239,12 @@ class KnowledgeBubbleComponent extends PositionComponent
       }
     }
 
-    _centerBase.add(_dir * (config.speed * dt * speedMultiplier));
-    final wave =
-        _perp * (sin(_t * config.waveFrequency) * config.waveAmplitude);
-    position.setFrom(_centerBase + wave);
+    if (isBurstBubble) {
+      _centerBase.add(_dir * (config.speed * dt * speedMultiplier));
+      final wave =
+          _perp * (sin(_t * config.waveFrequency) * config.waveAmplitude);
+      position.setFrom(_centerBase + wave);
+    }
 
     // Suppression propre une fois completement sortie de la fenetre de jeu (4 cotes).
     if (_isOffScreen()) {

@@ -1,12 +1,11 @@
 import 'dart:async';
 import 'dart:math' show min;
 
-import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
-import 'package:flutter/services.dart';
 
 import 'character_backup_painter.dart';
+import 'services/curio_audio_service.dart';
 
 export 'character_backup_painter.dart' show Mood;
 
@@ -41,11 +40,11 @@ class CharacterBackupWidget extends StatefulWidget {
   State<CharacterBackupWidget> createState() => _CharacterBackupWidgetState();
 }
 
+/// Drives Curio's animation ticker and smooth transitions between moods.
 class _CharacterBackupWidgetState extends State<CharacterBackupWidget>
     with TickerProviderStateMixin {
   late final Ticker _ticker;
-  late final AudioPlayer _audioPlayer;
-  int _soundRequest = 0;
+  late final CurioAudioService _audioService;
   final ValueNotifier<double> _time = ValueNotifier<double>(0);
   late final AnimationController _moodCtrl;
   late final AnimationController _hopCtrl;
@@ -58,8 +57,8 @@ class _CharacterBackupWidgetState extends State<CharacterBackupWidget>
   void initState() {
     super.initState();
     _from = _to = MoodParams.of(widget.mood);
-    _audioPlayer = AudioPlayer();
-    unawaited(_playMoodSound(widget.mood));
+    _audioService = CurioAudioService();
+    unawaited(_audioService.playMood(widget.mood));
 
     _moodCtrl = AnimationController(
       vsync: this,
@@ -85,35 +84,11 @@ class _CharacterBackupWidgetState extends State<CharacterBackupWidget>
   void didUpdateWidget(covariant CharacterBackupWidget oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.mood != widget.mood) {
-      unawaited(_playMoodSound(widget.mood));
+      unawaited(_audioService.playMood(widget.mood));
       // on part de l'état actuel pour éviter tout saut visuel
       _from = _current();
       _to = MoodParams.of(widget.mood);
       _moodCtrl.forward(from: 0);
-    }
-  }
-
-  static const Map<Mood, String> _moodSounds = {
-    Mood.happy: 'happy.mp3',
-    Mood.excited: 'happy.mp3',
-    Mood.surprised: 'surprised.mp3',
-    Mood.sad: 'sad.mp3',
-    Mood.angry: 'angry.mp3',
-  };
-
-  Future<void> _playMoodSound(Mood mood) async {
-    final request = ++_soundRequest;
-    await _audioPlayer.stop();
-    final filename = _moodSounds[mood];
-    if (filename == null || !mounted || request != _soundRequest) return;
-
-    final assetPath = 'assets/audio/$filename';
-    try {
-      await rootBundle.load(assetPath);
-      if (!mounted || request != _soundRequest) return;
-      await _audioPlayer.play(AssetSource('audio/$filename'));
-    } catch (_) {
-      // Un son absent ou illisible reste silencieux.
     }
   }
 
@@ -132,7 +107,7 @@ class _CharacterBackupWidgetState extends State<CharacterBackupWidget>
   void dispose() {
     widget.isPausedNotifier?.removeListener(_onPauseChanged);
     _ticker.dispose();
-    unawaited(_audioPlayer.dispose());
+    unawaited(_audioService.dispose());
     _moodCtrl.dispose();
     _hopCtrl.dispose();
     _time.dispose();
