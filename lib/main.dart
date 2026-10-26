@@ -2,6 +2,7 @@ import 'package:bubble/core/services/audio/sound_effect.dart';
 import 'package:flutter/material.dart';
 
 import 'app.dart';
+import 'features/game/application/controllers/game_controller.dart';
 import 'features/game/presentation/bubble_game.dart';
 
 /// Point d'entree principal de l'application.
@@ -18,7 +19,11 @@ Future<void> main() async {
   await soundEffects.init();
 
   // Instance unique du jeu coordonnant la boucle Flame, la physique et les entites.
-  final game = BubbleGame(soundEffects: soundEffects);
+  final gameController = GameController();
+  final game = BubbleGame(
+    soundEffects: soundEffects,
+    gameController: gameController,
+  );
 
   // Lance l'application (voir app.dart).
   runApp(BubbleApp(game: game));

@@ -1,7 +1,6 @@
 import 'dart:math' as math;
 
-import '../models/character_pose.dart';
-
+import 'package:bubble/features/ai_buddy/models/character_pose.dart';
 import 'package:flutter/material.dart';
 
 import '../painter/arms_painter.dart';
@@ -36,7 +35,7 @@ class EdutainerPainter extends CustomPainter {
   static const Size designSize = EdutainerContext.designSize;
   static const List<List<String>> symbolSets = MouthPainter.symbolSets;
 
-  Offset laserOrigin(Size size) {
+Offset laserOrigin(Size size) {
     const design = EdutainerContext.designSize;
     final scale = math.min(
       size.width / design.width,

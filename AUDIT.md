@@ -17,7 +17,7 @@ Les principaux risques identifiés sont la configuration Android non publiable e
 - `flutter test` : 35 tests réussis.
 - `flutter build apk --debug` : réussi (`build/app/outputs/flutter-apk/app-debug.apk`).
 - La permission Android `VIBRATE`, absente du manifeste de l'application, est ajoutée par le manifeste fusionné du plugin `vibration` et figure dans le manifeste APK debug.
-- Les 16 entrées de ressources déclarées dans `pubspec.yaml` existent.
+- Les 17 entrées de ressources déclarées dans `pubspec.yaml` existent.
 - Le worktree n'était pas propre lors de l'audit. Six suppressions de fichiers texte à la racine (`bubble_agent.txt`, `bubble_base.txt`, `bubble_game_agent.txt`, `bubble_game_base.txt`, `bubble_game_win.txt`, `bubble_win.txt`) étaient déjà présentes ; elles ont été préservées et ne sont pas traitées comme du code applicatif.
 
 ## Constats priorisés
@@ -46,7 +46,7 @@ Le catalogue contient 22 références `nameAudio`. Trois fichiers sont présents
 
 ### P2 — Responsabilités concentrées dans de grands fichiers
 
-**Fichiers :** [lib/features/game/presentation/bubble_game.dart](lib/features/game/presentation/bubble_game.dart), [lib/features/bubble/presentation/components/bubble.dart](lib/features/bubble/presentation/components/bubble.dart), [lib/features/curio/character_backup_painter.dart](lib/features/curio/character_backup_painter.dart)
+**Fichiers :** [lib/features/game/presentation/bubble_game.dart](lib/features/game/presentation/bubble_game.dart), [lib/features/bubble/presentation/components/bubble.dart](lib/features/bubble/presentation/components/bubble.dart), [lib/features/curio/presentation/widgets/character_backup_painter.dart](lib/features/curio/presentation/widgets/character_backup_painter.dart)
 
 Dans le worktree mesuré, ces fichiers font respectivement 684, 830 et 1 178 lignes. `BubbleGame` coordonne notamment la boucle Flame, les manches, les entrées, les collisions, l'audio et le cycle de vie ; `Bubble` cumule déplacement, états, interaction laser, collision et rendu. Cette concentration augmente le coût des changements et rend les tests isolés plus difficiles.
 
@@ -116,6 +116,36 @@ This follow-up records the module changes made after the audit snapshot:
 - Question pronunciation playback lives in `features/game/services/game_audio_service.dart`.
 - Shared generated audio and optional vibration adapters live under `core/services`; Curio mood voices are isolated in `features/curio/services`.
 - Bubble presentation delegates device vibration to the haptics service; the game coordinator delegates question audio and collision passes.
-- `STRUCTURE.md` and `PROJECT_STRUCTURE.txt` now match the current source layout.
+- `AUDIT.md` refreshed to reflect current state.
 
-Static analysis, tests, and builds were not rerun for this follow-up. The Android publishing configuration, missing pronunciation assets, painter invalidation issue, and integration coverage findings remain open.
+## GetX integration (2026-10-26)
+
+- `MaterialApp` replaced by `GetMaterialApp` in `lib/app.dart`; `get` dependency already present.
+- `HudButton` gained a `scale` parameter (default `0.6`); app.dart buttons use `1.0`.
+- The game session now uses an application-layer GetX controller and binding;
+  the commented speech-word flow remains outside the active game app.
+
+## Game application boundary follow-up (2026-10-26)
+
+- `GameController` now lives in `features/game/application/controllers`, is
+  registered by `GameBinding`, and is injected into `BubbleGame` from the app
+  composition root. The old presentation path remains as a compatibility export.
+- `GameCommandPort` is the narrow application-to-Flame boundary for restart and
+  knowledge acceleration. Flame attaches/detaches itself to the controller;
+  controller lifetime belongs to GetX, not `BubbleGame.onRemove`.
+- `BubblePopHistory` owns ordered, first-hit recording and session clearing.
+  `BubbleGame` keeps Flame bubble IDs and passes the popped content and current
+  question knowledge into this domain service.
+- A correct pop completes the round exactly once before applying side effects.
+  The next question is selected when the next round starts, so the visible
+  prompt remains aligned with the answer accepted during the current round.
+- `dart format` completed for all changed Dart sources.
+- `flutter analyze` reports no issues, and `flutter test --no-pub` passes all
+  44 tests, including controller bindings, game commands, pop history, and
+  repeated-pop protection.
+- All 17 asset paths declared in `pubspec.yaml` exist. Of 22 question audio
+  references, three have matching files and 19 remain absent; no assets were
+  created or renamed during this refactor.
+- The test run exposed a pre-existing Curio mood threshold mismatch: the gauge
+  showed `disapointed` at 10% remaining despite the test's expected `sad` mood.
+  The threshold now matches the existing test and intended mood bands.

@@ -24,7 +24,7 @@ class _BubbleBackgroundState extends State<BubbleBackground>
   Widget build(BuildContext context) {
     return AnimatedBuilder(
       animation: controller,
-      builder: (_, __) {
+      builder: (_, _) {
         return CustomPaint(
           painter: BubblePainter(controller.value),
           size: Size.infinite,
@@ -40,7 +40,7 @@ class BubblePainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final paint = Paint()..color = Colors.white.withOpacity(.3);
+    final paint = Paint()..color = Colors.white.withValues(alpha: .3);
 
     for (int i = 0; i < 20; i++) {
       double x = (i * 30.0) % size.width;

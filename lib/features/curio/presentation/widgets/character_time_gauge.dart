@@ -2,7 +2,9 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:bubble/core/services/audio/sound_effect.dart';
-import 'package:bubble/features/curio/character_backup_widget.dart';
+
+import 'character_backup_widget.dart';
+
 import 'package:flutter/material.dart';
 
 /// Compte à rebours visuel qui associe le niveau restant à l'humeur de Curio.
@@ -103,8 +105,8 @@ class CharacterTimeGaugeState extends State<CharacterTimeGauge>
 
   /// Redémarre, suspend ou reprend l'animation depuis le jeu.
   void restart({Duration? duration}) {
-    if (duration!=null){
-      _ctrl.duration=duration;
+    if (duration != null) {
+      _ctrl.duration = duration;
     }
     isCriticalNotifier.value = false;
     widget.isCriticalNotifier?.value = false;
@@ -162,7 +164,8 @@ class CharacterTimeGaugeState extends State<CharacterTimeGauge>
   Mood _moodFor(double r) {
     if (r > 0.66) return Mood.excited;
     if (r > 0.33) return Mood.stressed;
-    if (r > 0.01) return Mood.disapointed;
+    if (r > 0.11) return Mood.disapointed;
+    if (r > 0.01) return Mood.sad;
     return Mood.sleepy;
   }
 

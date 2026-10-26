@@ -5,7 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:bubble/features/bubble/models/bubble_config.dart';
 import 'package:bubble/features/bubble/presentation/components/bubble.dart';
 import 'package:bubble/features/bubble/presentation/rendering/bubble_text_helper.dart';
-import 'package:bubble/features/curio/character_backup_widget.dart';
+import 'package:bubble/features/curio/presentation/widgets/character_backup_widget.dart';
 import 'package:bubble/features/curio/presentation/widgets/character_time_gauge.dart';
 
 void main() {
@@ -59,6 +59,25 @@ void main() {
 
       expect(targetImpactCalled, isFalse);
       expect(wrongImpactCalled, isTrue);
+    });
+
+    test('ne traite quune fois le pop dune bulle deja en explosion', () {
+      var popCount = 0;
+      var targetImpactCount = 0;
+      final bubble = Bubble(
+        position: Vector2(100, 100),
+        config: const BubbleConfig(text: 'Bonne'),
+        canPop: (text) => text == 'Bonne',
+        onPopped: (_, _) => popCount++,
+        onTargetImpact: (_) => targetImpactCount++,
+      );
+
+      bubble
+        ..pop()
+        ..pop();
+
+      expect(popCount, 1);
+      expect(targetImpactCount, 1);
     });
   });
 

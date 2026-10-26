@@ -26,13 +26,24 @@ lib/
     |       |-- components/           Flame bubble entities, labels, and knowledge bubble
     |       |-- rendering/            Bubble rendering and text layout
     |       `-- widgets/              Flutter bubble widgets
-    |-- curio/                        Character, time gauge, overlays, voice service
+    |-- curio/
+    |   |-- domain/models/           Mood names and pose presets
+    |   |-- presentation/widgets/    Character, gauge, timer, and overlay UI
+    |   `-- services/                Curio voice playback
     `-- game/
+        |-- application/
+        |   |-- bindings/             GetX game registration
+        |   |-- contracts/            Flame command port
+        |   `-- controllers/           Observable game session and commands
         |-- configuration/            Gameplay tuning values
         |-- data/                     Question catalog
-        |-- domain/                    Question model and selection deck
+        |-- domain/
+        |   |-- models/                Question and pop records
+        |   |-- game_question_deck.dart Question selection
+        |   `-- services/              Ordered, deduplicated pop history
         |-- presentation/
         |   |-- components/           Laser, aiming, confetti, knowledge scatter
+        |   |-- overlays/             Flutter win, loss, and skip overlays
         |   |-- systems/              Game-world collision pass
         |   `-- bubble_game.dart      Flame lifecycle and game coordination
         `-- services/                 Question pronunciation playback
@@ -43,7 +54,11 @@ Dependency direction
 --------------------
 - `main.dart` composes Flutter and Flame features.
 - Game presentation coordinates components and delegates question selection,
-  collision passes, audio playback, and knowledge scatter to focused modules.
+  ordered first-hit pop history, collision passes, audio playback, and knowledge
+  scatter to focused modules. GetX state lives in the application controller;
+  `GameCommandPort` keeps high-level commands explicit across the Flame boundary.
+- Curio mood presets are pure domain data; Flutter widgets interpolate and paint
+  them, while the Curio audio adapter maps moods to optional voice assets.
 - Bubble entities depend on core contracts and services, not on the concrete
   game class.
 - Rendering consumes configuration and state; it does not own progression.

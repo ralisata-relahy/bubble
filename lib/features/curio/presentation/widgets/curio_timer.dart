@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../../../game/configuration/game_configuration.dart';
 import 'character_time_gauge.dart';
 import '../../../game/presentation/bubble_game.dart';
@@ -43,7 +44,7 @@ class _CurioOverlayState extends State<CurioOverlay>
       children: [
         // Bordure néon rouge clignotante UNIQUEMENT sur les bords de l'écran
         ValueListenableBuilder<bool>(
-          valueListenable: widget.game.isCriticalNotifier,
+          valueListenable: widget.game.gameController.isCriticalNotifier,
           builder: (context, isCritical, _) {
             if (!isCritical) return const SizedBox.shrink();
 
@@ -70,8 +71,10 @@ class _CurioOverlayState extends State<CurioOverlay>
               padding: const EdgeInsets.only(bottom: 100, top: 8),
               child: CharacterTimeGauge(
                 key: widget.game.gaugeKey,
-                isCriticalNotifier: widget.game.isCriticalNotifier,
-                isTimerPausedNotifier: widget.game.isTimerPausedNotifier,
+                isCriticalNotifier:
+                    widget.game.gameController.isCriticalNotifier,
+                isTimerPausedNotifier:
+                    widget.game.gameController.isTimerPausedNotifier,
                 soundEffects: widget.game.soundEffects,
                 duration: GameConfiguration.gameDuration,
                 barHeight: availableHeight - 230,

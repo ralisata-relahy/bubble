@@ -24,13 +24,24 @@ lib/
     |       |-- components/           Flame bubble entities and labels
     |       |-- rendering/            Bubble drawing and text layout
     |       `-- widgets/              Flutter bubble presentation
-    |-- curio/                        Character, timer, gauge, overlays, and voice service
+    |-- curio/
+    |   |-- domain/models/           Mood names and interpolated pose presets
+    |   |-- presentation/widgets/    Character, timer, gauge, and overlays
+    |   |-- services/                Curio voice playback
     `-- game/
+        |-- application/
+        |   |-- bindings/             GetX registration and session setup
+        |   |-- contracts/            App-to-Flame command boundary
+        |   `-- controllers/           Observable session state and commands
         |-- configuration/            Gameplay tuning values
         |-- data/                     Static question catalog
-        |-- domain/                    Question model and selection
+        |-- domain/
+        |   |-- models/                Immutable question and pop records
+        |   |-- game_question_deck.dart Question selection
+        |   `-- services/              Ordered, deduplicated pop history
         |-- presentation/
         |   |-- components/           Laser, aiming, confetti, and knowledge scatter
+        |   |-- overlays/             Flutter game-over, victory, and skip UI
         |   |-- systems/              Game-world collision pass
         |   `-- bubble_game.dart      Flame lifecycle and top-level coordination
         `-- services/                 Question pronunciation playback
@@ -42,8 +53,12 @@ test/                                 Flutter unit, widget, and layout tests
 
 - `main.dart` composes the app, shared background, overlays, and one `BubbleGame`.
 - `BubbleGame` owns Flame lifecycle and coordinates rounds, input, entities, and
-  state exposed to Flutter overlays. It delegates random question selection to
-  `GameQuestionDeck`, collision passes to the presentation
+  real-time simulation. It receives `GameController` through its constructor
+  and implements the narrow `GameCommandPort`; it does not construct or dispose
+  the GetX controller. `GameController` owns observable session state and sends
+  high-level commands through that port. It delegates question selection to
+  `GameQuestionDeck`, pop ordering and first-hit deduplication to
+  `BubblePopHistory`, collision passes to the presentation
   `BubbleCollisionSystem`, and end-of-game knowledge animation to
   `KnowledgeBubbleScatter`.
 - Game tuning values live in `GameConfiguration`; question content is data in
