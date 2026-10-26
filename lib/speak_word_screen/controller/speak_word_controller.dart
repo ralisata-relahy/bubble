@@ -24,7 +24,7 @@
 //     initSpeech();
 //   }
 
-//   // Speech to Text 
+//   // Speech to Text
 //   Future<void> initSpeech() async {
 //     speechEnabled.value = await speechToText.initialize(
 //       onStatus: (status) {
@@ -134,7 +134,7 @@
 //     }
 //   }
 
-//   // Match Word 
+//   // Match Word
 //   void matchword(String expectedWord, RxString recognizedText) async {
 //     var result = '';
 //     String spokenWord = recognizedText.value.trim();

@@ -3,11 +3,14 @@ import 'dart:typed_data';
 
 import 'sfx_generate.dart';
 
+/// Converts a MIDI note number [n] to its frequency in Hz (A4 = 440 Hz).
 double _midi(int n) => 440 * math.pow(2, (n - 69) / 12).toDouble();
 
+/// Allocates a zeroed sample buffer for the given duration in [seconds].
 Float64List _blank(double seconds) =>
     Float64List((SfxSynth.sampleRate * seconds).toInt());
 
+/// Adds (mixes) buffer [b] into [out] starting at [atSeconds].
 void _place(Float64List out, Float64List b, double atSeconds) {
   final offset = (SfxSynth.sampleRate * atSeconds).toInt();
   for (int i = 0; i < b.length && offset + i < out.length; i++) {
@@ -15,13 +18,13 @@ void _place(Float64List out, Float64List b, double atSeconds) {
   }
 }
 
-// Smooth fade-out
+/// Applies a quadratic fade-out over the last [seconds] of [out].
 void _fadeOut(Float64List out, double seconds) {
   final len = (SfxSynth.sampleRate * seconds).toInt();
   final start = out.length - len;
   if (start < 0) return;
   for (int i = 0; i < len; i++) {
-    final k = 1 - i / len; // 1 -> 0
+    final k = 1 - i / len; // ramps from 1 down to 0
     out[start + i] *= k * k; // quadratic = gentle tail
   }
 }
@@ -99,15 +102,17 @@ class SplashSfx {
 class GameMusic {
   /// Tempo of the generated loop in beats per minute.
   static const double bpm = 132;
+
   /// Duration of one beat in seconds.
   static const double beat = 60 / bpm;
+
   /// Number of bars in the loop before playback repeats.
   static const int bars = 8;
 
-  // Root of the bass
+  /// MIDI root notes for the bass line, one per bar.
   static const _bass = [48, 45, 41, 43, 48, 45, 41, 43];
 
-  // Chord stabs
+  /// Chord voicings (MIDI notes) played as stabs, one per bar.
   static const _chords = [
     [60, 64, 67], // C
     [57, 60, 64], // Am
@@ -119,7 +124,7 @@ class GameMusic {
     [59, 62, 67],
   ];
 
-  // Melody: 8 eighth-notes per bar
+  /// Melody line: 8 eighth-note MIDI pitches per bar (0 = rest).
   static const _melody = [
     [72, 0, 76, 0, 79, 76, 72, 0],
     [69, 0, 72, 0, 76, 72, 69, 0],

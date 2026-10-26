@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import '../models/character_pose.dart';
+
 import 'package:flutter/material.dart';
 
 import 'edutainer_context.dart';
@@ -146,10 +147,22 @@ class EyePainter {
   Path _heartPath(Offset c, double s) {
     return Path()
       ..moveTo(c.dx, c.dy + s * 0.5)
-      ..cubicTo(c.dx - s * 0.9, c.dy + s * 0.05, c.dx - s * 0.5,
-          c.dy - s * 0.6, c.dx, c.dy - s * 0.2)
-      ..cubicTo(c.dx + s * 0.5, c.dy - s * 0.6, c.dx + s * 0.9,
-          c.dy + s * 0.05, c.dx, c.dy + s * 0.5)
+      ..cubicTo(
+        c.dx - s * 0.9,
+        c.dy + s * 0.05,
+        c.dx - s * 0.5,
+        c.dy - s * 0.6,
+        c.dx,
+        c.dy - s * 0.2,
+      )
+      ..cubicTo(
+        c.dx + s * 0.5,
+        c.dy - s * 0.6,
+        c.dx + s * 0.9,
+        c.dy + s * 0.05,
+        c.dx,
+        c.dy + s * 0.5,
+      )
       ..close();
   }
 
@@ -214,7 +227,11 @@ class EyePainter {
           Path()
             ..moveTo(sx * r * 0.28, sy * r)
             ..quadraticBezierTo(
-                sx * r * 0.28, sy * r * 0.28, sx * r, sy * r * 0.28),
+              sx * r * 0.28,
+              sy * r * 0.28,
+              sx * r,
+              sy * r * 0.28,
+            ),
           p,
         );
       }

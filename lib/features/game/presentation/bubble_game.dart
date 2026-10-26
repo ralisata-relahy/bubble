@@ -1,12 +1,6 @@
 import 'dart:async';
 import 'dart:math';
 
-import 'package:bubble/features/game/presentation/components/trajectory_calculator.dart';
-import 'package:flame/components.dart';
-import 'package:flame/events.dart';
-import 'package:flame/game.dart';
-import 'package:flutter/material.dart';
-
 import 'package:bubble/core/contracts/knowledge_bubble_host.dart';
 import 'package:bubble/core/services/audio/sound_effect.dart';
 import 'package:bubble/core/services/haptics_service.dart';
@@ -15,20 +9,26 @@ import 'package:bubble/features/bubble/models/bubble_style.dart';
 import 'package:bubble/features/bubble/presentation/components/bubble.dart';
 import 'package:bubble/features/bubble/presentation/components/knowledge_bubble.dart';
 import 'package:bubble/features/curio/presentation/widgets/character_time_gauge.dart';
-import 'package:bubble/features/game/configuration/game_configuration.dart';
-import 'package:bubble/features/game/data/game_questions.dart';
 import 'package:bubble/features/game/application/contracts/game_command_port.dart';
 import 'package:bubble/features/game/application/controllers/game_controller.dart';
-import 'package:bubble/features/game/domain/services/bubble_pop_history.dart';
+import 'package:bubble/features/game/configuration/game_configuration.dart';
+import 'package:bubble/features/game/data/game_questions.dart';
 import 'package:bubble/features/game/domain/game_question_deck.dart';
+import 'package:bubble/features/game/domain/rules/round_color_palette.dart';
+import 'package:bubble/features/game/domain/services/bubble_pop_history.dart';
 import 'package:bubble/features/game/presentation/components/aim_guide_component.dart';
 import 'package:bubble/features/game/presentation/components/confetti_component.dart';
-import 'package:bubble/features/game/presentation/components/laser_beam.dart';
 import 'package:bubble/features/game/presentation/components/knowledge_bubble_scatter.dart';
+import 'package:bubble/features/game/presentation/components/laser_beam.dart';
+import 'package:bubble/features/game/presentation/components/trajectory_calculator.dart';
 import 'package:bubble/features/game/presentation/systems/bubble_collision_system.dart';
 import 'package:bubble/features/game/services/game_audio_service.dart';
+import 'package:flame/components.dart';
+import 'package:flame/events.dart';
+import 'package:flame/game.dart';
+import 'package:flutter/material.dart';
 
-/// Coordonne la boucle principale, la progression des manches et les entites Flame.
+/// Coordinates the primary Flame game loop, round progression, user input, and game entities.
 class BubbleGame extends FlameGame
     with TapCallbacks, DragCallbacks
     implements KnowledgeBubbleHost, GameCommandPort {
@@ -41,29 +41,38 @@ class BubbleGame extends FlameGame
   static const _fallbackGameHeight = 600.0;
 
   // ---------------------------------------------------------------------------
-  // Constantes
+  // Overlay Constants
   // ---------------------------------------------------------------------------
 
-  /// Identifiant de l'overlay Flutter affichant Curio et sa jauge de temps.
+  /// Identifier for the Flutter overlay displaying Curio and the time gauge.
   static const curioOverlay = 'curio';
 
-  /// Identifiant de l'overlay du bouton d'acceleration pendant la dispersion du savoir.
+  /// Identifier for the acceleration button overlay during knowledge dispersal.
   static const accelerateOverlay = 'accelerate';
 
+  /// Identifier for the game over overlay.
+  static const gameOverOverlay = 'gameOver';
+
+  /// Identifier for the victory winning overlay.
+  static const winingOverlay = 'wining';
+
   // ---------------------------------------------------------------------------
-  // Etat
+  // State and Dependencies
   // ---------------------------------------------------------------------------
 
-  /// Cle globale permettant de piloter le compte a rebours depuis le moteur Flame.
+  /// Global key enabling the Flame engine to control the countdown timer.
   final gaugeKey = GlobalKey<CharacterTimeGaugeState>();
   final SoundEffects soundEffects;
   final GameController gameController;
   final HapticsService hapticsService = HapticsService();
 
-  /// Generateur de nombres pseudo-aleatoires pour les positions et couleurs.
+  /// Pseudo-random number generator for positions and layout.
   final _random = Random();
   final _gameAudio = GameAudioService();
   final _collisionSystem = BubbleCollisionSystem();
+
+  /// Palette rule managing distinct colors per round.
+  late final _colorPalette = RoundColorPalette(random: _random);
 
   /// First-hit history preserves the order in which answer bubbles were popped.
   final BubblePopHistory _popHistory = BubblePopHistory();
@@ -75,10 +84,7 @@ class BubbleGame extends FlameGame
     random: _random,
   );
 
-  Set<Color> _previousRoundColors = {};
-  final Set<Color> _roundColors = {};
-
-  /// Faisceau laser actif et guide de visee.
+  /// Active laser beam and aiming guide.
   LaserBeam? _laser;
   late final AimGuideComponent _aimGuide;
   Vector2? _lastAimPosition;
@@ -94,13 +100,10 @@ class BubbleGame extends FlameGame
   int _timeSteps = 1;
   bool _accelerateVisible = false;
 
-  /// Nombre de sous-pas actifs, expose pour garder certaines animations au
-  /// rythme reel lorsque la simulation des bulles est acceleree.
+  /// Active simulation substeps, exposed to keep certain animations at
+  /// real-time rate during accelerated knowledge dispersal.
   int get simulationTimeSteps => _timeSteps;
 
-  // button overlay
-  static const gameOverOverlay = 'gameOver';
-  static const winingOverlay = 'wining';
   @override
   bool isFrozen = false;
 
@@ -114,14 +117,14 @@ class BubbleGame extends FlameGame
       size.x > 0 ? size : Vector2(_fallbackGameWidth, _fallbackGameHeight);
 
   // ---------------------------------------------------------------------------
-  // Cycle de vie Flame
+  // Flame Lifecycle
   // ---------------------------------------------------------------------------
 
-  /// Conserve la transparence du canvas Flame pour laisser apparaitre le fond Flutter.
+  /// Maintains Flame canvas transparency so the Flutter background remains visible.
   @override
   Color backgroundColor() => Colors.transparent;
 
-  /// Initialise l'overlay et lance la premiere manche de jeu.
+  /// Initializes overlays and launches the first game round.
   @override
   Future<void> onLoad() async {
     _aimGuide = AimGuideComponent();
@@ -141,14 +144,14 @@ class BubbleGame extends FlameGame
     super.onRemove();
   }
 
-  /// Adapte la disposition de la mascotte lors d'un redimensionnement de fenetre.
+  /// Adapts mascot and laser layout on viewport resize.
   @override
   void onGameResize(Vector2 size) {
     super.onGameResize(size);
     _laser?.fitToViewport(size);
   }
 
-  /// Met a jour le temps de freeze, les entites et declenche la resolution des collisions.
+  /// Updates freeze duration, entities, and executes the collision resolution pass.
   @override
   void update(double dt) {
     // Clamp long frames so a pause or resumed tab cannot move bubbles through targets.
@@ -159,11 +162,7 @@ class BubbleGame extends FlameGame
     // Keep Flame's normal lifecycle on the first pass; extra passes accelerate
     // the component simulation after the player skips the victory scatter.
     for (var i = 0; i < _timeSteps; i++) {
-      if (i == 0) {
-        super.update(safeDt);
-      } else {
-        super.update(safeDt);
-      }
+      super.update(safeDt);
 
       if (isFrozen) {
         elapsedFreezeTime += safeDt;
@@ -171,11 +170,6 @@ class BubbleGame extends FlameGame
         // Each frozen state has a different completion condition: timed restart,
         // game-over pause, or the victory scatter finishing/leaving the screen.
         if (gameController.isGameOver) {
-          // Sur un Game Over (temps ecoule), on laisse observer le statut avant de redemarrer.
-          // if (elapsedFreezeTime >= GameConfiguration.gameOverFreezeDuration) {
-          //   restartGame();
-          //   return;
-          // }
           return;
         } else if (gameController.isWon && !_endingGame) {
           final knowledgeBubbles = children
@@ -211,10 +205,10 @@ class BubbleGame extends FlameGame
   }
 
   // ---------------------------------------------------------------------------
-  // Controles de dispersion du savoir
+  // Knowledge Dispersal Controls
   // ---------------------------------------------------------------------------
 
-  /// Gere l'apparition du bouton selon le temps REEL ecoule (jamais accelere).
+  /// Manages acceleration button appearance based on elapsed real-time (not accelerated).
   void _updateKnowledgeControls(double realDt) {
     if (!gameController.isWon || gameController.isGameOver || _endingGame) {
       return;
@@ -229,7 +223,7 @@ class BubbleGame extends FlameGame
     }
   }
 
-  /// Masque le bouton et remet le temps a la normale.
+  /// Hides the button and resets simulation rate to normal.
   void _resetKnowledgeControls() {
     _timeSteps = 1;
     _knowledgeRealTime = 0.0;
@@ -237,52 +231,27 @@ class BubbleGame extends FlameGame
     overlays.remove(accelerateOverlay);
   }
 
-  /// Accelere la dispersion des bulles de savoir.
+  /// Accelerates knowledge bubble dispersal.
   @override
   void accelerateKnowledge() {
     if (!gameController.isWon || gameController.isGameOver) return;
     _timeSteps = GameConfiguration.accelerationFactor;
-    _accelerateVisible = true; // evite une re-ouverture
-    overlays.remove(accelerateOverlay); // le bouton disparait apres usage
+    _accelerateVisible = true; // prevents reopening
+    overlays.remove(accelerateOverlay); // button dismisses after use
   }
 
   // ---------------------------------------------------------------------------
-  // Couleurs et questions
+  // Round Setup and Entities
   // ---------------------------------------------------------------------------
 
-  /// Selectionne une teinte primaire vive non repetee dans la meme manche.
-  Color _nextRoundColor() {
-    var availableColors = Colors.primaries
-        .where(
-          (color) =>
-              !_previousRoundColors.contains(color) &&
-              !_roundColors.contains(color),
-        )
-        .toList();
-    if (availableColors.isEmpty) {
-      availableColors = Colors.primaries
-          .where((color) => !_roundColors.contains(color))
-          .toList();
-    }
-
-    final color = availableColors[_random.nextInt(availableColors.length)];
-    _roundColors.add(color);
-    return color;
-  }
-
-  // ---------------------------------------------------------------------------
-  // Manches
-  // ---------------------------------------------------------------------------
-
-  /// Initialise les entites de la manche : mascotte laser et bulles de reponse.
+  /// Initializes round entities: laser mascot and answer bubbles.
   Future<void> _startRound() async {
     final gameSize = _effectiveGameSize;
     final question = _questionDeck.current;
     _currentAnswer = question.answer;
-    _previousRoundColors = Set<Color>.of(_roundColors);
-    _roundColors.clear();
+    _colorPalette.startNextRound();
 
-    final labelColor = _nextRoundColor();
+    final labelColor = _colorPalette.nextColor();
     // The previous round's laser is removed with its answer bubbles; create a
     // fresh one so the question label and viewport layout start in sync.
     final laser = LaserBeam(
@@ -303,11 +272,11 @@ class BubbleGame extends FlameGame
     await add(laser);
 
     for (final choice in question.choices) {
-      await _spawn(choice, _nextRoundColor());
+      await _spawn(choice, _colorPalette.nextColor());
     }
   }
 
-  /// Genere une bulle de reponse sur le canvas.
+  /// Spawns an answer bubble onto the game canvas.
   Future<void> _spawn(String text, Color color) async {
     const bubbleSize = Size(
       GameConfiguration.bubbleSize,
@@ -350,7 +319,7 @@ class BubbleGame extends FlameGame
     );
   }
 
-  /// Calcule une position initiale aleatoire dans la zone autorisee.
+  /// Computes a random spawn position within the allowed play boundary.
   Vector2 _randomPosition(Size bubbleSize) {
     final gameSize = _effectiveGameSize;
     final halfWidth = bubbleSize.width / 2;
@@ -368,17 +337,17 @@ class BubbleGame extends FlameGame
     );
   }
 
-  /// Applique un malus de temps lors d'une mauvaise reponse (-5% de la duree totale).
+  /// Applies a time penalty on an incorrect answer.
   void _onWrongAnswer() {
     if (gameController.isWon || gameController.isGameOver) return;
     gaugeKey.currentState?.addTime(GameConfiguration.wrongAnswerTimePenalty);
   }
 
-  /// Declenche l'animation de reussite et l'ejection des bulles de savoir.
+  /// Initiates round victory animation, freeze state, and celebration confetti.
   void _startFreezeOnWin(Vector2 popPosition) {
     if (!gameController.completeRound()) return;
 
-    // Bonus de temps pour bonne reponse (+10% de la duree totale).
+    // Time bonus on correct answer (+10% of total duration).
     gaugeKey.currentState?.addTime(GameConfiguration.correctAnswerTimeBonus);
     // Pause the timer and ordinary round progression while burst knowledge exits.
     isFrozen = true;
@@ -392,7 +361,7 @@ class BubbleGame extends FlameGame
       if (!bubble.isTarget) bubble.removeFromParent();
     }
 
-    // Gerbe de confettis depuis le point d'impact.
+    // Confetti burst from impact origin.
     add(
       ConfettiComponent(
         origin: popPosition.clone(),
@@ -406,10 +375,10 @@ class BubbleGame extends FlameGame
   }
 
   // ---------------------------------------------------------------------------
-  // Redemarrage et manche suivante
+  // Session Restart and Round Progression
   // ---------------------------------------------------------------------------
 
-  /// Supprime bulles, bulles de savoir, confettis et laser de la manche courante.
+  /// Removes bubbles, knowledge components, confetti, and laser from the current round.
   void _clearRoundEntities() {
     // Remove from a snapshot because Flame applies tree mutations after the frame.
     for (final child in children.toList()) {
@@ -424,7 +393,7 @@ class BubbleGame extends FlameGame
     _laser = null;
   }
 
-  /// Demarre une nouvelle partie.
+  /// Starts a new game session.
   @override
   void restartGame() {
     final previousQuestionIndex = _questionDeck.currentIndex;
@@ -436,6 +405,7 @@ class BubbleGame extends FlameGame
     _popHistory.clear();
     _collectionIndex = 0;
     _endingGame = false;
+    _colorPalette.reset();
     gameController.reset();
     isFrozen = false;
     gameController.isCriticalNotifier.value = false;
@@ -448,8 +418,7 @@ class BubbleGame extends FlameGame
     _startRound();
   }
 
-  /// Nettoie les composants en place et relance une nouvelle manche sans
-  /// reinitialiser la jauge de temps.
+  /// Cleans up current entities and starts the next round without resetting the timer gauge.
   void nextRound() {
     gameController.startNextRound();
     if (gameController.completedRounds.value >=
@@ -528,7 +497,7 @@ class BubbleGame extends FlameGame
     );
   }
 
-  /// Declenche l'arret de jeu lorsque le temps imparti est ecoule.
+  /// Handles game over when the timer expires.
   void onTimeUp() {
     if (gameController.isWon || gameController.isGameOver) return;
 
@@ -542,7 +511,7 @@ class BubbleGame extends FlameGame
   }
 
   // ---------------------------------------------------------------------------
-  // Visee et tir
+  // Aiming and Shooting
   // ---------------------------------------------------------------------------
 
   void _updateAimTrajectory(Vector2 targetPos) {
@@ -582,7 +551,7 @@ class BubbleGame extends FlameGame
 
     if (gameController.isWon || isFrozen || laser == null) return;
 
-    // Si une trajectoire etait activement affichee par le viseur, on la suit a 100%.
+    // If a trajectory was actively shown by the aiming guide, follow it exactly.
     if (trajectory != null && trajectory.points.length >= 2) {
       laser.fireTrajectory(trajectory);
     } else if (targetPos != null) {
@@ -591,7 +560,7 @@ class BubbleGame extends FlameGame
   }
 
   // ---------------------------------------------------------------------------
-  // Entrees tactiles
+  // Touch and Drag Input Handling
   // ---------------------------------------------------------------------------
 
   @override
@@ -618,14 +587,14 @@ class BubbleGame extends FlameGame
     _cancelAim();
   }
 
-  /// Active la visee au premier contact sans declencher le tir immediatement.
+  /// Activates aiming trajectory on initial tap without firing immediately.
   @override
   void onTapDown(TapDownEvent event) {
     super.onTapDown(event);
     _updateAimTrajectory(event.localPosition);
   }
 
-  /// Declenche le tir laser au relachement du doigt apres ajustement.
+  /// Fires the laser beam upon tap release.
   @override
   void onTapUp(TapUpEvent event) {
     super.onTapUp(event);

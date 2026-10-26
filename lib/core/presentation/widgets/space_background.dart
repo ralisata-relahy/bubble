@@ -1,19 +1,20 @@
 import 'dart:math';
+
 import 'package:flutter/material.dart';
 
-/// Fond spatial statique et responsif (aucune animation, très léger).
-/// Utilisation : SpaceBackground(child: VotreJeu())
+/// Static responsive space background (no animations, very lightweight).
+/// Usage: SpaceBackground(child: YourGame())
 class SpaceBackground extends StatelessWidget {
-  /// Widget placé au-dessus des étoiles.
+  /// Widget placed above the starfield.
   final Widget? child;
 
-  /// Nombre d'étoiles par tranche de 10 000 pixels logiques.
+  /// Number of stars per 10,000 logical pixels.
   final double density;
 
-  /// Graine : même valeur = même ciel.
+  /// Seed: identical values produce an identical sky.
   final int seed;
 
-  /// Étoiles supplémentaires près du bas (0 = aucune, à utiliser avec modération).
+  /// Additional stars near the bottom edge (0 = none).
   final int groundStars;
 
   const SpaceBackground({
@@ -29,7 +30,7 @@ class SpaceBackground extends StatelessWidget {
     return Stack(
       fit: StackFit.expand,
       children: [
-        // RepaintBoundary : le ciel n'est pas redessiné quand le jeu bouge.
+        // RepaintBoundary: the starfield is not repainted during game motion.
         RepaintBoundary(
           child: CustomPaint(
             painter: _SpacePainter(
@@ -47,16 +48,16 @@ class SpaceBackground extends StatelessWidget {
 
 /// Stores one star in normalized coordinates for a responsive background.
 class _Star {
-  final double x; // 0..1 (position relative)
+  final double x; // 0..1 (relative position)
   final double y; // 0..1
-  final double size; // 0..1 (taille relative)
+  final double size; // 0..1 (relative size)
   final Color color;
 
   _Star(this.x, this.y, this.size, this.color);
 }
 
-/// Génère [count] étoiles bien réparties (grille avec décalage aléatoire).
-/// [yMin]..[yMax] limitent la zone verticale (0 = haut, 1 = bas).
+/// Generates [count] well-distributed stars (jittered grid).
+/// [yMin]..[yMax] constrain the vertical range (0 = top, 1 = bottom).
 List<_Star> _generateStars(
   Random rng,
   int count,
@@ -68,8 +69,8 @@ List<_Star> _generateStars(
 
   const tints = [
     Colors.white,
-    Color(0xFFCFE3FF), // bleutée
-    Color(0xFFFFF2D6), // chaude
+    Color(0xFFCFE3FF), // bluish
+    Color(0xFFFFF2D6), // warm
   ];
 
   final bandHeight = yMax - yMin;
@@ -85,12 +86,14 @@ List<_Star> _generateStars(
     for (var c = 0; c < cols; c++) {
       final x = (c + 0.2 + rng.nextDouble() * 0.6) * cellW;
       final y = yMin + (r + 0.2 + rng.nextDouble() * 0.6) * cellH;
-      result.add(_Star(
-        x,
-        y,
-        pow(rng.nextDouble(), 3).toDouble(), // surtout petites, peu de grandes
-        tints[rng.nextInt(tints.length)],
-      ));
+      result.add(
+        _Star(
+          x,
+          y,
+          pow(rng.nextDouble(), 3).toDouble(), // predominantly small, few large
+          tints[rng.nextInt(tints.length)],
+        ),
+      );
     }
   }
   return result;
@@ -110,7 +113,7 @@ class _SpacePainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    // Dégradé de fond.
+    // Background gradient.
     final rect = Offset.zero & size;
     canvas.drawRect(
       rect,
@@ -126,7 +129,7 @@ class _SpacePainter extends CustomPainter {
         ).createShader(rect),
     );
 
-    // Nombre d'étoiles selon la surface de l'écran.
+    // Star count determined by viewport surface area.
     final count = ((size.width * size.height) / 10000 * density).round();
     final rng = Random(seed);
 
@@ -135,7 +138,7 @@ class _SpacePainter extends CustomPainter {
       ..._generateStars(rng, groundStars, size, yMin: 0.85, yMax: 1.0),
     ];
 
-    // Taille relative au plus petit côté -> s'adapte à tous les écrans.
+    // Size scaled relative to shortest dimension to fit all displays.
     final unit = min(size.width, size.height);
     final paint = Paint();
 
@@ -146,7 +149,7 @@ class _SpacePainter extends CustomPainter {
       paint.color = s.color.withValues(alpha: 0.85);
       canvas.drawCircle(center, radius, paint);
 
-      // Léger halo pour les plus grandes étoiles.
+      // Subtle glow halo for larger stars.
       if (s.size > 0.5) {
         paint.color = s.color.withValues(alpha: 0.12);
         canvas.drawCircle(center, radius * 3.5, paint);
@@ -154,8 +157,7 @@ class _SpacePainter extends CustomPainter {
     }
   }
 
-  // Redessine seulement si les paramètres changent (la taille déclenche
-  // automatiquement un nouveau paint).
+  // Only repaint if configuration properties change (resize triggers repaint automatically).
   @override
   bool shouldRepaint(covariant _SpacePainter old) =>
       old.density != density ||

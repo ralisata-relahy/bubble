@@ -1,18 +1,18 @@
 // character_backup_painter.dart
 //
-// Personnage jaune 2.5D à crête en cœur rouge, animé et piloté par une
-// "humeur" (Mood). Tout est dessiné en code (CustomPainter), sans asset.
+// Personnage jaune 2.5D Ã  crÃªte en cÅ“ur rouge, animÃ© et pilotÃ© par une
+// "humeur" (Mood). Tout est dessinÃ© en code (CustomPainter), sans asset.
 //
 // Animations permanentes :
-//   * respiration (squash & stretch) et léger rebond
+//   * respiration (squash & stretch) et lÃ©ger rebond
 //   * clignements (avec parfois un double clignement)
-//   * regard qui bouge légèrement
-//   * oreilles qui frétillent, queue qui remue
-//   * cœur qui se balance et bat (lub-dub)
-// Changer de Mood fait glisser en douceur tous les paramètres (~450 ms).
+//   * regard qui bouge lÃ©gÃ¨rement
+//   * oreilles qui frÃ©tillent, queue qui remue
+//   * cÅ“ur qui se balance et bat (lub-dub)
+// Changer de Mood fait glisser en douceur tous les paramÃ¨tres (~450 ms).
 //
-// Pour ajouter une humeur : ajoutez une valeur à Mood, puis un preset dans
-// _presets qui ne liste que les paramètres différents de "happy".
+// Pour ajouter une humeur : ajoutez une valeur Ã  Mood, puis un preset dans
+// _presets qui ne liste que les paramÃ¨tres diffÃ©rents de "happy".
 
 // ignore_for_file: library_private_types_in_public_api
 
@@ -26,7 +26,7 @@ import '../../domain/models/mood.dart';
 export '../../domain/models/mood.dart' show Mood, MoodParams, MoodParameter;
 
 // =============================================================================
-// Outils de dessin
+// Drawing utilities
 // =============================================================================
 
 /// Builds a paint object from the bounds of one character feature.
@@ -42,7 +42,7 @@ Color _c(int rgb, [double opacity = 1.0]) => Color.fromRGBO(
 _P _solid(Color color) =>
     (box) => Paint()..color = color;
 
-/// Dégradé radial dans l'espace unitaire (0..1) de la boîte (comme en SVG).
+/// DÃ©gradÃ© radial dans l'espace unitaire (0..1) de la boÃ®te (comme en SVG).
 _P _radial(
   List<Color> colors,
   List<double> stops, {
@@ -263,7 +263,7 @@ Path _heartPath() => Path()
   ..close();
 
 // =============================================================================
-// Peintre animé
+// Peintre animÃ©
 // =============================================================================
 
 /// Paints Curio's complete animated character from a normalized mood pose.
@@ -277,19 +277,19 @@ class CharacterBackupPainter extends CustomPainter {
     this.backgroundColor,
   }) : super(repaint: repaint);
 
-  /// Temps écoulé en secondes (alimenté par un Ticker).
+  /// Temps Ã©coulÃ© en secondes (alimentÃ© par un Ticker).
   final ValueListenable<double> time;
 
-  /// Progression du saut (0..1), déclenché au tap.
+  /// Hop animation progress (0..1), triggered on tap.
   final Animation<double> hop;
 
-  /// Paramètres d'humeur courants (déjà interpolés).
+  /// ParamÃ¨tres d'humeur courants (dÃ©jÃ  interpolÃ©s).
   final MoodParams Function() params;
 
-  /// Indique si le personnage passe d'une humeur à une autre.
+  /// Indique si le personnage passe d'une humeur Ã  une autre.
   final bool Function() isMoodTransitioning;
 
-  /// Indique si l'humeur sélectionnée est amoureuse.
+  /// Indique si l'humeur sÃ©lectionnÃ©e est amoureuse.
 
   final Color? backgroundColor;
 
@@ -311,7 +311,7 @@ class CharacterBackupPainter extends CustomPainter {
       canvas.drawRect(Offset.zero & size, Paint()..color = backgroundColor!);
     }
 
-    // Mise à l'échelle proportionnelle + centrage
+    // Mise Ã  l'Ã©chelle proportionnelle + centrage
     final scale = math.min(size.width / _w, size.height / _h);
     canvas.save();
     canvas.translate(
@@ -320,7 +320,7 @@ class CharacterBackupPainter extends CustomPainter {
     );
     canvas.scale(scale);
 
-    // ---- mouvement du corps : respiration, rebond, tremblement, saut ----
+    // ---- body motion: breathing, bounce, shake, hop ----
     final breath = math.sin(t * 2 * math.pi * p[MoodParameter.breathRate]);
     var sy = 1 + p[MoodParameter.breathAmp] * breath - p[MoodParameter.slump];
     var sx =
@@ -377,7 +377,7 @@ class CharacterBackupPainter extends CustomPainter {
         math.sin(t * 2 * math.pi * p[MoodParameter.wagRate]);
 
     c.save();
-    // la queue pivote autour du point où elle rejoint le corps
+    // la queue pivote autour du point oÃ¹ elle rejoint le corps
     c.translate(232, 440);
     c.rotate(_rad(wag));
     c.translate(-232, -440);
@@ -400,7 +400,7 @@ class CharacterBackupPainter extends CustomPainter {
     }
     c.restore();
 
-    // reflet de la queue, coupé à sa forme
+    // reflet de la queue, coupÃ© Ã  sa forme
     c.save();
     c.clipPath(_ovalPath(172, 455, 74, 45));
     _oval(c, 160, 436, 44, 9, _solid(_c(0xFFFFFF, .25)));
@@ -413,7 +413,7 @@ class CharacterBackupPainter extends CustomPainter {
     final wigL = 2.2 * math.sin(t * 2 * math.pi * 0.55);
     final wigR = 2.2 * math.sin(t * 2 * math.pi * 0.55 + 1.3);
 
-    // ---- oreille gauche ----
+    // ---- left ear ----
     c.save();
     c.translate(195, 335);
     c.rotate(_rad(-(droop + wigL)));
@@ -436,7 +436,7 @@ class CharacterBackupPainter extends CustomPainter {
     _oval(c, 170, 345, 14, 22, _solid(_c(0xFFD0C8, .20)), deg: -10);
     c.restore();
 
-    // ---- oreille droite ----
+    // ---- right ear ----
     c.save();
     c.translate(478, 262);
     c.rotate(_rad(droop + wigR));
@@ -471,11 +471,11 @@ class CharacterBackupPainter extends CustomPainter {
     c.drawLine(const Offset(427, 571), const Offset(428, 580), toe);
   }
 
-  /// Dessinée AVANT la tête : la tête en cache la pointe.
+  /// DessinÃ©e AVANT la tÃªte : la tÃªte en cache la pointe.
   void _hairOrHeart(Canvas c, MoodParams p, double t) {
     final sway = 3.5 * math.sin(t * 2 * math.pi * 0.45);
 
-    // battement "lub-dub"
+    // "lub-dub" heartbeat
     final ph = (t * p[MoodParameter.heartRate]) % 1.0;
     final beat =
         math.exp(-math.pow((ph - .08) / .05, 2)) +
@@ -483,7 +483,7 @@ class CharacterBackupPainter extends CustomPainter {
     final pulse = 1 + p[MoodParameter.heartPulse] * beat;
 
     c.save();
-    c.translate(358, 152); // base de la crête sur la tête
+    c.translate(358, 152); // base de la crÃªte sur la tÃªte
     c.rotate(_rad(p[MoodParameter.heartTilt] + sway));
     c.scale(p[MoodParameter.heartScale] * pulse);
     c.translate(0, -40);
@@ -508,7 +508,7 @@ class CharacterBackupPainter extends CustomPainter {
   void _bodyAndFace(Canvas c, MoodParams p) {
     _oval(c, 360, 355, 186, 202, _gBody);
     _oval(c, 365, 300, 158, 126, _gCream);
-    // Reflets du ventre et du haut de la tête : coupés à la forme du corps.
+    // Reflets du ventre et du haut de la tÃªte : coupÃ©s Ã  la forme du corps.
     c.save();
     c.clipPath(_ovalPath(360, 355, 186, 202));
     _oval(c, 360, 520, 130, 28, _solid(_c(0xFFE04A, .5)));
@@ -521,9 +521,9 @@ class CharacterBackupPainter extends CustomPainter {
     _oval(c, 432, 186 + lift, 23, 10, _gBrown, deg: 12 - tilt);
   }
 
-  // ---- yeux -----------------------------------------------------------------
+  // ---- eyes -----------------------------------------------------------------
 
-  /// 0 = ouvert, 1 = fermé. Clignement toutes les ~3,9 s et double
+  /// 0 = ouvert, 1 = fermÃ©. Clignement toutes les ~3,9 s et double
   /// clignement toutes les ~11,7 s.
   double _blink(double t) {
     double one(double period, double offset) {
@@ -579,8 +579,8 @@ class CharacterBackupPainter extends CustomPainter {
     _oval(c, iris[0] + gx, iris[1] + gy, iris[2], iris[2], _gIris);
     final pr = pupil[2] * p[MoodParameter.pupil];
     _oval(c, pupil[0] + gx, pupil[1] + gy, pr, pr, _gPupil);
-    // Ombre douce de la paupière supérieure : un dégradé qui s'efface,
-    // sans bord net (sinon on dirait une deuxième paupière).
+    // Ombre douce de la paupiÃ¨re supÃ©rieure : un dÃ©gradÃ© qui s'efface,
+    // sans bord net (sinon on dirait une deuxiÃ¨me paupiÃ¨re).
     c.save();
     c.translate(sc[0], sc[1]);
     c.rotate(_rad(-12));
@@ -607,7 +607,7 @@ class CharacterBackupPainter extends CustomPainter {
       Paint()..color = _c(0xFFFFFF, .9),
     );
 
-    // paupière (dans le repère incliné de l'oeil)
+    // paupiÃ¨re (dans le repÃ¨re inclinÃ© de l'oeil)
     c.save();
     c.translate(sc[0], sc[1]);
     c.rotate(_rad(-12));
@@ -615,7 +615,7 @@ class CharacterBackupPainter extends CustomPainter {
     c.restore();
 
     c.restore(); // clip
-    c.restore(); // échelle de l'oeil
+    c.restore(); // Ã©chelle de l'oeil
   }
 
   void _lid(
@@ -659,14 +659,14 @@ class CharacterBackupPainter extends CustomPainter {
     _oval(c, 381, 321, 5, 2.5, _solid(_c(0xFFFFFF, .55)));
   }
 
-  // ---- bouche (paramétrique pour pouvoir passer d'une humeur à l'autre) -----
+  // ---- bouche (paramÃ©trique pour pouvoir passer d'une humeur Ã  l'autre) -----
 
   void _mouth(Canvas c, MoodParams p, double t) {
     final w = p[MoodParameter.mW];
     const cx = 386.0;
     final cornerY = p[MoodParameter.mCorner];
     final topCtrl = p[MoodParameter.mTop];
-    // bouche "qui respire" quand il dort
+    // Breathing mouth motion when sleepy
     final bottomY =
         p[MoodParameter.mBottom] +
         p[MoodParameter.zzz] * 2.5 * math.sin(t * 2 * math.pi * 0.25);
@@ -677,19 +677,19 @@ class CharacterBackupPainter extends CustomPainter {
     final yl = cornerY;
     final yr = cornerY - 2;
 
-    // Pointe centrale de la lèvre (même hauteur que le sommet de l'ancienne
+    // Pointe centrale de la lÃ¨vre (mÃªme hauteur que le sommet de l'ancienne
     // arche, donc les humeurs gardent leur forme).
     final cuspY = 0.25 * yl + 0.5 * topCtrl + 0.25 * yr;
 
-    // Profondeur des deux arcs (creux) de la lèvre supérieure.
+    // Depth of the two upper lip arcs.
     final dip = 7.0 * math.max(0.6, math.min(w, 1.2));
 
-    // Chaque arc est une quadratique dont le point de contrôle est sous la
+    // Each arc is quadratic with control point below chord.
     // corde : la courbe passe donc `dip` plus bas que la ligne droite.
     final ctrlL = Offset((xl + cx) / 2, (yl + cuspY) / 2 + 2 * dip);
     final ctrlR = Offset((cx + xr) / 2, (cuspY + yr) / 2 + 2 * dip);
 
-    // Le haut de la bouche suit directement les deux arcs :
+    // Top of the mouth follows both arcs directly.
     // remplissage et contour sont donc identiques.
     final mouth = Path()
       ..moveTo(xl, yl)
@@ -718,10 +718,10 @@ class CharacterBackupPainter extends CustomPainter {
     c.save();
     c.clipPath(mouth);
 
-    // ombre sous la lèvre supérieure
+    // ombre sous la lÃ¨vre supÃ©rieure
     _oval(c, cx + 2, cuspY + 9, 40 * w, 12, _solid(_c(0x3E0A14, .55)));
 
-    // langue : elle sort de plus en plus avec la valeur "tongue"
+    // Tongue: protrudes proportionally with the "tongue" parameter
     final vis = p[MoodParameter.tongue];
     if (vis > 0.01) {
       final ty = bottomY + 18 - 29 * vis;
@@ -735,7 +735,7 @@ class CharacterBackupPainter extends CustomPainter {
       _oval(c, cx - 5, ty - 7, 8, 4, _solid(_c(0xFFFFFF, .55)), deg: -25);
     }
 
-    // dent accrochée à la pointe de la lèvre (coupée par les arcs)
+    // dent accrochÃ©e Ã  la pointe de la lÃ¨vre (coupÃ©e par les arcs)
     final tooth = p[MoodParameter.tooth];
     if (tooth > 0.02) {
       c.save();
@@ -752,7 +752,7 @@ class CharacterBackupPainter extends CustomPainter {
     }
     c.restore();
 
-    // Contour avec jointure en pointe : la pointe centrale reste nette
+    // Sharp mitered outline for central cusp.
     // comme sur votre croquis (avec une jointure ronde elle s'arrondirait).
     c.drawPath(
       mouth,
@@ -768,14 +768,14 @@ class CharacterBackupPainter extends CustomPainter {
   }
 
   void _finalHighlights(Canvas c) {
-    // Un seul reflet, coupé à la forme de la tête pour ne jamais déborder.
+    // Un seul reflet, coupÃ© Ã  la forme de la tÃªte pour ne jamais dÃ©border.
     c.save();
     c.clipPath(_ovalPath(360, 355, 186, 202));
     _oval(c, 292, 205, 36, 13, _solid(_c(0xFFFFFF, .30)), deg: -38);
     c.restore();
   }
 
-  // ---- effets : larmes, Zzz, petits coeurs, marque de colère ----------------
+  // ---- effets : larmes, Zzz, petits coeurs, marque de colÃ¨re ----------------
 
   void _effects(Canvas c, MoodParams p, double t) {
     if (p[MoodParameter.tear] > 0.02) _tears(c, p[MoodParameter.tear], t);

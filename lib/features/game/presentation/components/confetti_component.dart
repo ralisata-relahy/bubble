@@ -52,7 +52,7 @@ class _ConfettiParticle {
   }
 }
 
-/// Composant Flame animant une gerbe de confettis festifs lors d'une victoire.
+/// Flame component that animates a festive confetti burst during a victory.
 class ConfettiComponent extends Component {
   ConfettiComponent({
     required this.origin,
@@ -71,14 +71,14 @@ class ConfettiComponent extends Component {
   double _elapsed = 0.0;
 
   static const _palette = [
-    Color(0xFFFFD700), // Or
-    Color(0xFFFF4081), // Rose vif
-    Color(0xFF00E5FF), // Cyan néon
-    Color(0xFFB388FF), // Mauve clair
-    Color(0xFF76FF03), // Vert lime
+    Color(0xFFFFD700), // Gold
+    Color(0xFFFF4081), // Bright pink
+    Color(0xFF00E5FF), // Neon cyan
+    Color(0xFFB388FF), // Soft purple
+    Color(0xFF76FF03), // Lime green
     Color(0xFFFF9100), // Orange
-    Color(0xFFFFFFFF), // Blanc
-    Color(0xFF00E676), // Émeraude
+    Color(0xFFFFFFFF), // White
+    Color(0xFF00E676), // Emerald
   ];
 
   @override
@@ -90,7 +90,7 @@ class ConfettiComponent extends Component {
   void _spawnParticles() {
     _particles.clear();
     for (var i = 0; i < particleCount; i++) {
-      // Angle radial avec bias vers le haut (-pi/2)
+      // Radial angle biased upward (-pi/2)
       final angle =
           -math.pi / 2 + (_random.nextDouble() - 0.5) * (math.pi * 1.3);
       final speed = 250.0 + _random.nextDouble() * 450.0;
@@ -139,7 +139,7 @@ class ConfettiComponent extends Component {
   void render(Canvas canvas) {
     super.render(canvas);
 
-    // Fondu progressif dans le dernier tiers du temps
+    // Progressive fade during the final third of the animation
     final remaining = duration - _elapsed;
     final fadeDuration = duration * 0.35;
     final opacity = remaining < fadeDuration

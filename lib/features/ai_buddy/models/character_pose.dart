@@ -1,4 +1,5 @@
 import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
 /// Built-in animation presets and their relative playback speeds.
@@ -94,7 +95,11 @@ class EdutainerPose {
   EdutainerPose withEmotion(EdutainerEmotion e) {
     switch (e) {
       case EdutainerEmotion.normal:
-        return copyWith(mischief: 0, heart: 0, sadness: 0); // calm: no V, no mark
+        return copyWith(
+          mischief: 0,
+          heart: 0,
+          sadness: 0,
+        ); // calm: no V, no mark
       case EdutainerEmotion.angry:
         return copyWith(mischief: 1, heart: 0, sadness: 0);
       case EdutainerEmotion.love:

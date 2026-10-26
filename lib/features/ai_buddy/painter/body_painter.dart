@@ -18,7 +18,9 @@ class BodyPainter {
   void paint(Canvas canvas) {
     final b = _bodyPath.getBounds();
     canvas.drawPath(
-        _bodyPath, Paint()..shader = ctx.bodyGradient.createShader(b));
+      _bodyPath,
+      Paint()..shader = ctx.bodyGradient.createShader(b),
+    );
 
     canvas.save();
     canvas.clipPath(_bodyPath);

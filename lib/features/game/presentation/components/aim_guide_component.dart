@@ -5,12 +5,12 @@ import 'package:flutter/material.dart';
 
 import 'trajectory_calculator.dart';
 
-/// Composant affichant en temps reel le faisceau laser cyan avec ricochets.
+/// Real-time aiming guide component rendering the laser trajectory and wall bounces.
 class AimGuideComponent extends Component with HasGameReference {
   AimGuideComponent({
-    this.coreColor = const Color(0xFF4FD1C5), // cyan/turquoise du coeur
-    this.glowColor = const Color(0xFF2BB5B0), // halo
-    this.centerColor = const Color(0xFFB8FFF5), // liseré clair central
+    this.coreColor = const Color(0xFF4FD1C5), // Turquoise beam core
+    this.glowColor = const Color(0xFF2BB5B0), // Outer halo
+    this.centerColor = const Color(0xFFB8FFF5), // Bright center line
   });
 
   final Color coreColor;
@@ -50,7 +50,7 @@ class AimGuideComponent extends Component with HasGameReference {
     final points = _trajectory!.points;
     if (points.length < 2) return;
 
-    // Tres legere variation (quasi constante) pour garder un faisceau stable
+    // Subtle pulsation to keep the laser beam visually vibrant yet stable
     final pulse = 0.96 + 0.04 * math.sin(_pulseTime * 8);
 
     final path = Path()..moveTo(points[0].x, points[0].y);
@@ -58,7 +58,7 @@ class AimGuideComponent extends Component with HasGameReference {
       path.lineTo(points[i].x, points[i].y);
     }
 
-    // 1) Grand halo diffus
+    // 1. Wide diffuse glow
     final outerGlow = Paint()
       ..color = glowColor.withValues(alpha: 0.12 * pulse)
       ..strokeWidth = 18.0
@@ -67,7 +67,7 @@ class AimGuideComponent extends Component with HasGameReference {
       ..style = PaintingStyle.stroke
       ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 10);
 
-    // 2) Halo moyen
+    // 2. Medium glow
     final midGlow = Paint()
       ..color = glowColor.withValues(alpha: 0.25 * pulse)
       ..strokeWidth = 8.0
@@ -76,7 +76,7 @@ class AimGuideComponent extends Component with HasGameReference {
       ..style = PaintingStyle.stroke
       ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4);
 
-    // 3) Coeur net (cyan plein)
+    // 3. Crisp beam core
     final core = Paint()
       ..color = coreColor.withValues(alpha: 0.8 * pulse)
       ..strokeWidth = 6.0
@@ -84,7 +84,7 @@ class AimGuideComponent extends Component with HasGameReference {
       ..strokeJoin = StrokeJoin.round
       ..style = PaintingStyle.stroke;
 
-    // 4) Liseré central plus clair
+    // 4. Bright specular center line
     final center = Paint()
       ..color = centerColor.withValues(alpha: 0.22 * pulse)
       ..strokeWidth = 0.8
@@ -97,7 +97,7 @@ class AimGuideComponent extends Component with HasGameReference {
     canvas.drawPath(path, core);
     canvas.drawPath(path, center);
 
-    // Points lumineux aux rebonds (petites "etoiles" comme sur la photo)
+    // Luminous bounce sparks at reflection vertices
     final bounceHalo = Paint()
       ..color = centerColor.withValues(alpha: 0.35 * pulse)
       ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4);
@@ -109,7 +109,7 @@ class AimGuideComponent extends Component with HasGameReference {
       canvas.drawCircle(p, 3.5, bounceCore);
     }
 
-    // Point final
+    // Impact terminal point
     final lastPoint = Offset(points.last.x, points.last.y);
     final dotRadius = 4.5 + 1.0 * math.sin(_pulseTime * 10);
     final targetHit = _trajectory!.hitLaserTarget != null;
@@ -128,7 +128,7 @@ class AimGuideComponent extends Component with HasGameReference {
       Paint()..color = endColor.withValues(alpha: 0.95 * pulse),
     );
 
-    // Cercle de visee si une cible est verrouillee
+    // Target lock indicator circle when locked onto an eligible bubble
     if (targetHit) {
       final ringPaint = Paint()
         ..color = Colors.yellowAccent.withValues(alpha: 0.7 * pulse)

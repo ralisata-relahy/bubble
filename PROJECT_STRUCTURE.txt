@@ -3,62 +3,92 @@ Bubble project structure
 
 Architecture
 ------------
-Code is organized by feature. Each feature keeps its data, domain logic,
-configuration, presentation, and feature-specific services together. Shared
-contracts, physics, UI primitives, and platform services live in core.
+Code is organized using a feature-first Clean Architecture + MVC pattern:
+- Model: Immutable domain entities, data catalogs, and business rules.
+- View: Flutter screens, HUD overlays, and Flame custom rendering components.
+- Controller: GetX controllers managing observable state and UI commands.
+- Flame Engine: Authoritative owner of all real-time simulation (positions,
+  velocities, collision passes, particle physics, and per-frame animations).
+- GetX <-> Flame Boundary: High-level commands flow through the GameCommandPort
+  interface; no per-frame physics variables are stored in Rx variables.
 
 Source tree
 -----------
 lib/
-|-- main.dart                         Flutter app bootstrap and composition
+|-- main.dart                         Flutter app entry point and GetX initialization
+|-- app.dart                          Root BubbleApp widget and GameView composition
 |-- core/
-|   |-- contracts/                    Shared component/game interfaces
-|   |-- physics/                      Reusable collision resolution
-|   |-- presentation/widgets/         Shared Flutter UI
+|   |-- contracts/                    Shared component/game interfaces (KnowledgeBubbleHost, LaserTarget)
+|   |-- physics/                      Reusable impulse collision resolution (BubbleCollisionResolver)
+|   |-- presentation/widgets/         Shared Flutter UI (HudButton, SpaceBackground)
 |   `-- services/
-|       |-- audio/                    Generated sound effects and audio facade
+|       |-- audio/                    Synthesized sound effects and audio facade
 |       `-- haptics_service.dart      Optional vibration integration
 `-- features/
-    |-- ai_buddy/                     Edutainer models, painters, and widgets
-    |-- bubble/
-    |   |-- models/                   Bubble motion and visual configuration
+    |-- ai_buddy/                     Edutainer character feature
+    |   |-- controllers/              AiBuddyController (GetX)
+    |   |-- bindings/                 AiBuddyBinding
+    |   |-- views/                    EdutainmentView export barrel
+    |   |-- models/                   CharacterPose, SaucerPalette
+    |   |-- painter/                  Specialized character painters
+    |   |-- widgets/                  Character custom painter and widget
+    |   `-- edutainer.dart            Edutainer Flutter entry widget
+    |-- bubble/                       Bubble entities, physics, and rendering
+    |   |-- controllers/              BubbleController (GetX reactive state)
+    |   |-- bindings/                 BubbleBinding
+    |   |-- views/                    BubbleView export barrel
+    |   |-- models/                   BubbleConfig, BubbleStyle
     |   `-- presentation/
     |       |-- components/           Flame bubble entities, labels, and knowledge bubble
-    |       |-- rendering/            Bubble rendering and text layout
-    |       `-- widgets/              Flutter bubble widgets
-    |-- curio/
-    |   |-- domain/models/           Mood names and pose presets
-    |   |-- presentation/widgets/    Character, gauge, timer, and overlay UI
-    |   `-- services/                Curio voice playback
-    `-- game/
-        |-- application/
-        |   |-- bindings/             GetX game registration
-        |   |-- contracts/            Flame command port
-        |   `-- controllers/           Observable game session and commands
-        |-- configuration/            Gameplay tuning values
-        |-- data/                     Question catalog
+    |       |-- rendering/            SphereRenderer, BubbleHeatEffect, BubblePopRenderer, BubbleTextHelper
+    |       `-- widgets/              Flutter BubbleWidget
+    |-- curio/                        Curio mascot feature
+    |   |-- controllers/              CurioController (GetX reactive mood)
+    |   |-- bindings/                 CurioBinding
+    |   |-- views/                    CurioViews export barrel
+    |   |-- models/                   Forwarding export for Mood
+    |   |-- domain/models/            Mood enum and MoodParams presets
+    |   |-- services/                 CurioAudioService (voice reactions)
+    |   `-- presentation/widgets/     CharacterTimeGauge, CurioTimer, CharacterBackupWidget
+    `-- game/                         Main gameplay feature
+        |-- controllers/              GameController (GetX canonical session state)
+        |-- bindings/                 GameBinding
+        |-- views/                    GameView (GameWidget + overlays)
+        |-- models/                   GameModels export barrel
+        |-- application/              Forwarding exports for backward compatibility
+        |   |-- bindings/             GameBinding re-export
+        |   |-- contracts/            GameCommandPort interface
+        |   `-- controllers/          GameController re-export
+        |-- configuration/            GameConfiguration tuning constants
+        |-- data/
+        |   |-- game_questions.dart   Static question catalog
+        |   `-- repositories/         StaticGameQuestionRepository
         |-- domain/
-        |   |-- models/                Question and pop records
-        |   |-- game_question_deck.dart Question selection
-        |   `-- services/              Ordered, deduplicated pop history
+        |   |-- game_question_deck.dart  Round question picker (no immediate repeats)
+        |   |-- models/               GameQuestion, PoppedBubbleRecord
+        |   |-- rules/                RoundColorPalette (per-round distinct colors)
+        |   `-- services/             BubblePopHistory (ordered pop records)
         |-- presentation/
-        |   |-- components/           Laser, aiming, confetti, knowledge scatter
-        |   |-- overlays/             Flutter win, loss, and skip overlays
-        |   |-- systems/              Game-world collision pass
-        |   `-- bubble_game.dart      Flame lifecycle and game coordination
-        `-- services/                 Question pronunciation playback
+        |   |-- bubble_game.dart      Flame game loop, touch/drag input, round transitions
+        |   |-- components/           AimGuideComponent, LaserBeam, TrajectoryCalculator, ConfettiComponent, KnowledgeBubbleScatter, LaserLabelBox
+        |   |-- overlays/             GameOverOverlay, WinningOverlay, AccelerateOverlay
+        |   `-- systems/              BubbleCollisionSystem
+        `-- services/                 GameAudioService (question pronunciation playback)
 
-test/                                 Unit, widget, and game-logic tests
-
-Dependency direction
---------------------
-- `main.dart` composes Flutter and Flame features.
-- Game presentation coordinates components and delegates question selection,
-  ordered first-hit pop history, collision passes, audio playback, and knowledge
-  scatter to focused modules. GetX state lives in the application controller;
-  `GameCommandPort` keeps high-level commands explicit across the Flame boundary.
-- Curio mood presets are pure domain data; Flutter widgets interpolate and paint
-  them, while the Curio audio adapter maps moods to optional voice assets.
-- Bubble entities depend on core contracts and services, not on the concrete
-  game class.
-- Rendering consumes configuration and state; it does not own progression.
+Test suite
+----------
+test/
+|-- bubble_collision_test.dart        Collision impulse and separation resolution
+|-- bubble_controller_test.dart       BubbleController reactive state
+|-- bubble_heat_effect_test.dart      Laser thermal glow and inflation
+|-- bubble_painter_test.dart          BubblePainter shouldRepaint logic
+|-- bubble_pop_history_test.dart      Ordered, deduplicated pop history
+|-- bubble_pop_renderer_test.dart     Pop droplet particles and hole expansion
+|-- curio_controller_test.dart        CurioController mood changes
+|-- game_controller_test.dart         GameController session lifecycle & bindings
+|-- game_question_deck_test.dart      Deck selection & non-repeat logic
+|-- knowledge_bubble_scatter_layout_test.dart Responsive grid layout mathematics
+|-- popped_bubble_record_test.dart    Immutable pop record snapshots
+|-- round_color_palette_test.dart     Per-round color selection rule
+|-- trajectory_calculator_test.dart   Ray-bounce trajectory mathematics
+`-- widget_test.dart                  Hit-testing, label fitting, gauge moods

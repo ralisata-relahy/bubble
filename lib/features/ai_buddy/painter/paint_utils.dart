@@ -2,9 +2,8 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
-// Color 
-Color fade(Color c, double o) =>
-    c.withAlpha((o.clamp(0.0, 1.0) * 255).round());
+/// Returns [c] with its alpha multiplied by [o] (0.0–1.0).
+Color fade(Color c, double o) => c.withAlpha((o.clamp(0.0, 1.0) * 255).round());
 
 double deg(double d) => d * math.pi / 180;
 

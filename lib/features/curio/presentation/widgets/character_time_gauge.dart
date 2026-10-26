@@ -2,12 +2,11 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:bubble/core/services/audio/sound_effect.dart';
+import 'package:flutter/material.dart';
 
 import 'character_backup_widget.dart';
 
-import 'package:flutter/material.dart';
-
-/// Compte à rebours visuel qui associe le niveau restant à l'humeur de Curio.
+/// Visual countdown gauge that maps remaining time ratio to Curio's facial mood.
 class CharacterTimeGauge extends StatefulWidget {
   const CharacterTimeGauge({
     super.key,
@@ -15,7 +14,7 @@ class CharacterTimeGauge extends StatefulWidget {
     this.onFinished,
     this.barHeight,
     this.barWidth = 20,
-    this.characterSize = const Size(120, 113), // ≈ ratio 680 / 640
+    this.characterSize = const Size(120, 113), // Aspect ratio approx 680 / 640
     this.autoStart = true,
     this.isCriticalNotifier,
     this.isTimerPausedNotifier,
@@ -36,7 +35,7 @@ class CharacterTimeGauge extends StatefulWidget {
   State<CharacterTimeGauge> createState() => CharacterTimeGaugeState();
 }
 
-/// Contrôle les opérations de durée de vie du compte à rebours.
+/// State controller for the character time countdown gauge.
 class CharacterTimeGaugeState extends State<CharacterTimeGauge>
     with TickerProviderStateMixin {
   static const _criticalTimeThreshold = 0.3;
@@ -47,7 +46,7 @@ class CharacterTimeGaugeState extends State<CharacterTimeGauge>
   late final AnimationController _pulse;
   final ValueNotifier<bool> isCriticalNotifier = ValueNotifier<bool>(false);
 
-  /// Temps restant normalisé : 1 signifie plein et 0 signifie écoulé.
+  /// Normalized remaining time: 1.0 is full and 0.0 is expired.
   double get remaining => 1 - _ctrl.value;
 
   int _lastAlertTimestamp = 0;
@@ -103,7 +102,7 @@ class CharacterTimeGaugeState extends State<CharacterTimeGauge>
     }
   }
 
-  /// Redémarre, suspend ou reprend l'animation depuis le jeu.
+  /// Restarts, pauses, or resumes the countdown from the game engine.
   void restart({Duration? duration}) {
     if (duration != null) {
       _ctrl.duration = duration;
@@ -126,13 +125,13 @@ class CharacterTimeGaugeState extends State<CharacterTimeGauge>
     _pulse.repeat(reverse: true);
   }
 
-  /// Ajoute une fraction de la durée totale au compte à rebours.
-  /// Valeur négative = perte de temps.
+  /// Adds or subtracts a fraction of total game duration to/from the countdown timer.
+  /// A negative value represents a time penalty.
   void addTime(double fraction) {
     final wasRunning = _ctrl.isAnimating;
     final nextValue = (_ctrl.value - fraction).clamp(0.0, 1.0);
 
-    // Sons selon le sens de variation
+    // Audio feedback based on time bonus or penalty
     if (fraction > 0) {
       final effects = widget.soundEffects;
       if (effects != null) unawaited(effects.play(Sfx.redForming));
@@ -160,7 +159,7 @@ class CharacterTimeGaugeState extends State<CharacterTimeGauge>
     super.dispose();
   }
 
-  /// Associe une humeur à chaque tranche de temps restant.
+  /// Maps remaining time ratio to Curio's corresponding mood.
   Mood _moodFor(double r) {
     if (r > 0.66) return Mood.excited;
     if (r > 0.33) return Mood.stressed;
@@ -169,32 +168,28 @@ class CharacterTimeGaugeState extends State<CharacterTimeGauge>
     return Mood.sleepy;
   }
 
-  /// Couleur néon principale selon le temps restant.
+  /// Neon bar glow color interpolated based on remaining time.
   Color _glowColor(double r) {
-    const cyan = Color(0xFF00E5FF);
-    const violet = Color(0xFFB388FF);
-    const alert = Color(0xFFFF1744);
-    if (r > 0.5) return Color.lerp(violet, cyan, (r - 0.5) / 0.5)!;
-    if (r > 0.2) return Color.lerp(alert, violet, (r - 0.2) / 0.3)!;
-    return alert;
+    if (r > 0.66) {
+      return const Color(0xFF00E5FF); // Electric Cyan
+    } else if (r > 0.33) {
+      return const Color(0xFFFFB300); // Amber warning
+    } else if (r > 0.11) {
+      return const Color(0xFFFF3D00); // Crimson urgency
+    } else {
+      return const Color(0xFFFF1744); // Critical Red
+    }
   }
 
-  /// Dessine la jauge et place Curio au niveau de remplissage actuel.
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final cw = widget.characterSize.width;
         final ch = widget.characterSize.height;
+        final cw = widget.characterSize.width;
+        final bh =
+            widget.barHeight ?? math.max(120.0, constraints.maxHeight - ch);
         final bw = widget.barWidth;
-
-        // Available height, or 80% of the screen if the parent is unbounded.
-        final available = constraints.hasBoundedHeight
-            ? constraints.maxHeight
-            : MediaQuery.sizeOf(context).height * 0.8;
-
-        // The tube takes the remaining height after the character.
-        final bh = widget.barHeight ?? math.max(0.0, available - ch);
 
         return SizedBox(
           width: cw,
@@ -206,7 +201,7 @@ class CharacterTimeGaugeState extends State<CharacterTimeGauge>
               final glow = _glowColor(r);
               final fillHeight = bh * r;
 
-              // Pulsation plus rapide quand il reste peu de temps
+              // Accelerated pulsing when remaining time is low
               final urgency = r < 0.2 ? 1.0 : 0.0;
               final pulse = 0.55 + 0.45 * _pulse.value;
               final intensity = urgency > 0 ? 0.6 + 0.4 * _pulse.value : pulse;
@@ -214,7 +209,7 @@ class CharacterTimeGaugeState extends State<CharacterTimeGauge>
               return Stack(
                 clipBehavior: Clip.none,
                 children: [
-                  // Halo diffus derrière le tube
+                  // Diffuse aura behind the gauge tube
                   Positioned(
                     left: (cw - bw) / 2,
                     top: ch / 2,
@@ -234,7 +229,7 @@ class CharacterTimeGaugeState extends State<CharacterTimeGauge>
                     ),
                   ),
 
-                  // Tube de verre sombre + contour néon
+                  // Dark glass tube with outer neon border
                   Positioned(
                     left: (cw - bw) / 2,
                     top: ch / 2,
@@ -266,7 +261,7 @@ class CharacterTimeGaugeState extends State<CharacterTimeGauge>
                     ),
                   ),
 
-                  // Niveau d'énergie (dégradé + lueur)
+                  // Energy level liquid fill
                   Positioned(
                     left: (cw - bw) / 2 + 3,
                     top: ch / 2 + 3 + (bh - 6 - (bh - 6) * r),
@@ -296,7 +291,7 @@ class CharacterTimeGaugeState extends State<CharacterTimeGauge>
                     ),
                   ),
 
-                  // Étoiles / graduations lumineuses sur le tube
+                  // Ticks / illuminated graduations on the tube
                   Positioned(
                     left: (cw - bw) / 2,
                     top: ch / 2,
@@ -307,7 +302,7 @@ class CharacterTimeGaugeState extends State<CharacterTimeGauge>
                     ),
                   ),
 
-                  // Aura derrière le personnage
+                  // Glowing aura behind character
                   Positioned(
                     left: 0,
                     top: bh - fillHeight,
@@ -327,10 +322,10 @@ class CharacterTimeGaugeState extends State<CharacterTimeGauge>
                     ),
                   ),
 
-                  // Personnage posé sur le niveau
+                  // Mascot character positioned on the current level
                   Positioned(
                     left: 0,
-                    top: bh - fillHeight, // centre du perso = haut du niveau
+                    top: bh - fillHeight,
                     width: cw,
                     height: ch,
                     child: CharacterBackupWidget(
@@ -349,7 +344,7 @@ class CharacterTimeGaugeState extends State<CharacterTimeGauge>
   }
 }
 
-/// Petites graduations lumineuses sur le côté du tube.
+/// Small illuminated tick marks on the tube edge.
 class _TicksPainter extends CustomPainter {
   _TicksPainter({required this.color});
 

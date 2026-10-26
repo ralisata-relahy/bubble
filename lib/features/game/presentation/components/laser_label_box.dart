@@ -3,11 +3,11 @@ import 'dart:ui' as ui;
 import 'package:flame/components.dart';
 import 'package:flutter/material.dart';
 
-/// Panneau HUD néon (style tech / spatial) qui affiche un court texte
-/// sous le mascotte.
+/// Neon HUD panel (tech / space style) that displays a short text
+/// below the mascot.
 ///
-/// Le rendu est mis en cache dans un [ui.Picture] : il n'est recalculé
-/// que lorsque le texte ou la largeur maximale changent.
+/// Rendering is cached in a [ui.Picture]: it is only recomputed
+/// when the text or maximum width changes.
 class LaserLabelBox extends PositionComponent {
   LaserLabelBox({
     required this._text,
@@ -18,10 +18,10 @@ class LaserLabelBox extends PositionComponent {
     _rebuild();
   }
 
-  /// Couleur du contour, du halo néon et des accents.
+  /// Outline, neon halo, and accent details color.
   Color accentColor;
 
-  /// Met à jour la couleur néon et redessine le panneau.
+  /// Updates the neon color and redraws the panel.
   set color(Color value) {
     if (value == accentColor) return;
     accentColor = value;
@@ -36,10 +36,10 @@ class LaserLabelBox extends PositionComponent {
   static const double _maxTextWidth = 300;
   static const double _paddingH = 30;
   static const double _paddingV = 20;
-  static const double _chamfer = 16; // coins coupés
+  static const double _chamfer = 16; // cut corners
   static const double _borderWidth = 2.5;
 
-  /// Largeur maximale du panneau (le rendu s'adapte à l'écran).
+  /// Maximum panel width (rendering adapts to viewport width).
   set maxWidth(double value) {
     final next = value.clamp(48.0, _defaultMaxWidth).toDouble();
     if (next == _maxWidth) return;
@@ -47,7 +47,7 @@ class LaserLabelBox extends PositionComponent {
     _rebuild();
   }
 
-  /// Met à jour le texte et redessine le panneau.
+  /// Updates displayed text and redraws the panel.
   set text(String value) {
     if (value == _text) return;
     _text = value;
@@ -67,7 +67,7 @@ class LaserLabelBox extends PositionComponent {
     super.onRemove();
   }
 
-  // ── Construction du cache ─────────────────────────────────────────
+  // ── Cache Construction ─────────────────────────────────────────────
 
   void _rebuild() {
     final scale = (_maxWidth / _defaultMaxWidth).clamp(0.65, 1.0).toDouble();
@@ -117,7 +117,7 @@ class LaserLabelBox extends PositionComponent {
     letterSpacing: 0.4 * scale,
     height: 1.25,
     shadows: [
-      // Lueur néon autour des lettres.
+      // Neon glow around letters.
       Shadow(color: accentColor.withValues(alpha: 0.9), blurRadius: 10 * scale),
       Shadow(
         color: const Color(0x66000000),
@@ -127,9 +127,9 @@ class LaserLabelBox extends PositionComponent {
     ],
   );
 
-  // ── Forme ─────────────────────────────────────────────────────────
+  // ── Shape ──────────────────────────────────────────────────────────
 
-  /// Rectangle aux quatre coins coupés (look « panneau sci-fi »).
+  /// Rectangle with four cut corners (sci-fi panel look).
   Path _panelPath(Size s, double c) => Path()
     ..moveTo(c, 0)
     ..lineTo(s.width - c, 0)
@@ -149,9 +149,9 @@ class LaserLabelBox extends PositionComponent {
     ..color = color
     ..maskFilter = blur > 0 ? MaskFilter.blur(BlurStyle.normal, blur) : null;
 
-  // ── Couches de dessin ─────────────────────────────────────────────
+  // ── Paint Layers ───────────────────────────────────────────────────
 
-  /// Halo néon extérieur en deux couches (large et diffus + serré et vif).
+  /// Outer neon halo in two passes (wide & diffuse + tight & vivid).
   void _paintGlow(Canvas canvas, Path path, double scale) {
     canvas
       ..drawPath(
@@ -172,7 +172,7 @@ class LaserLabelBox extends PositionComponent {
       );
   }
 
-  /// Fond sombre teinté, dégradé du haut vers le bas.
+  /// Dark tinted background, top-to-bottom gradient.
   void _paintFill(Canvas canvas, Path path, Size s) {
     canvas.drawPath(
       path,
@@ -196,7 +196,7 @@ class LaserLabelBox extends PositionComponent {
     );
   }
 
-  /// Lueur qui « éclaire » l'intérieur du panneau depuis les bords.
+  /// Inner edge illumination around the panel border.
   void _paintInnerGlow(Canvas canvas, Path path, double scale) {
     canvas
       ..save()
@@ -212,7 +212,7 @@ class LaserLabelBox extends PositionComponent {
       ..restore();
   }
 
-  /// Fines lignes horizontales façon écran holographique.
+  /// Fine horizontal holographic scanlines.
   void _paintScanlines(Canvas canvas, Path path, Size s, double scale) {
     final paint = Paint()
       ..strokeWidth = scale
@@ -228,7 +228,7 @@ class LaserLabelBox extends PositionComponent {
     canvas.restore();
   }
 
-  /// Reflet de verre sur le haut du panneau.
+  /// Glass sheen across top portion of panel.
   void _paintSheen(Canvas canvas, Path path, Size s) {
     canvas
       ..save()
@@ -248,7 +248,7 @@ class LaserLabelBox extends PositionComponent {
       ..restore();
   }
 
-  /// Contour néon net, éclairci vers le blanc.
+  /// Sharp neon border lightened towards white.
   void _paintBorder(Canvas canvas, Path path, double scale) {
     canvas.drawPath(
       path,
@@ -259,7 +259,7 @@ class LaserLabelBox extends PositionComponent {
     );
   }
 
-  /// Détails tech : segments lumineux sur les bords et nœuds latéraux.
+  /// Tech details: luminous edge segments and side nodes.
   void _paintAccents(Canvas canvas, Size s, double scale) {
     final c = _chamfer * scale;
     final inset = c + 10 * scale;
@@ -267,10 +267,10 @@ class LaserLabelBox extends PositionComponent {
     final y = s.height / 2;
 
     final segments = Path()
-      // Haut, côté gauche
+      // Top left
       ..moveTo(inset, 0)
       ..lineTo(inset + length, 0)
-      // Bas, côté droit
+      // Bottom right
       ..moveTo(s.width - inset - length, s.height)
       ..lineTo(s.width - inset, s.height);
 
@@ -278,7 +278,7 @@ class LaserLabelBox extends PositionComponent {
       ..addPolygon(_diamond(Offset(0, y), 4.5 * scale), true)
       ..addPolygon(_diamond(Offset(s.width, y), 4.5 * scale), true);
 
-    // Passe floue (lueur) puis passe nette (cœur blanc).
+    // Blurred pass (glow) then sharp pass (white core).
     canvas
       ..drawPath(segments, _stroke(5 * scale, accentColor, blur: 6 * scale))
       ..drawPath(segments, _stroke(3 * scale, Colors.white))

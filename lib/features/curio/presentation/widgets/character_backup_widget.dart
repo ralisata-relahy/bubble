@@ -10,13 +10,13 @@ import '../../services/curio_audio_service.dart';
 
 export '../../domain/models/mood.dart' show Mood;
 
-/// Personnage animé.
+/// Animated Curio mascot widget.
 ///
 ///   CharacterBackupWidget(mood: Mood.happy)
 ///   CharacterBackupWidget(mood: _mood, onTap: () => debugPrint('tap'))
 ///
-/// Changer `mood` fait glisser en douceur toutes les expressions (~450 ms).
-/// Un tap fait sauter le personnage (désactivable avec hopOnTap: false).
+/// Changing `mood` smoothly interpolates all facial expressions (~450 ms).
+/// Tapping causes the character to hop (can be disabled with hopOnTap: false).
 class CharacterBackupWidget extends StatefulWidget {
   const CharacterBackupWidget({
     super.key,
@@ -27,9 +27,8 @@ class CharacterBackupWidget extends StatefulWidget {
     this.isPausedNotifier,
   });
 
-  /// Taille de référence du personnage. Le dessin a un rapport 680 / 640
-  /// (≈ 1,0625), donc gardez largeur / hauteur proche de cette valeur
-  /// pour éviter des marges vides.
+  /// Reference size of the character. The artwork has an aspect ratio of 680 / 640
+  /// (≈ 1.0625), so keep width / height close to this ratio to avoid letterboxing.
   final Size size;
 
   final Mood mood;
@@ -86,7 +85,7 @@ class _CharacterBackupWidgetState extends State<CharacterBackupWidget>
     super.didUpdateWidget(oldWidget);
     if (oldWidget.mood != widget.mood) {
       unawaited(_audioService.playMood(widget.mood));
-      // on part de l'état actuel pour éviter tout saut visuel
+      // Start from the current interpolated state to avoid visual jumps.
       _from = _current();
       _to = MoodParams.of(widget.mood);
       _moodCtrl.forward(from: 0);

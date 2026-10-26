@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../../core/presentation/widgets/hud_button.dart';
 import '../../application/controllers/game_controller.dart';
 
+/// Flutter overlay shown when the player wins a round.
 class WinningOverlay extends StatelessWidget {
   const WinningOverlay({required this.controller, super.key});
 

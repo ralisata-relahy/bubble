@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import '../models/character_pose.dart';
+
 import 'package:flutter/material.dart';
 
 import 'edutainer_context.dart';

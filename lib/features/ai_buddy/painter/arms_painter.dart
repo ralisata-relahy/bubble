@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import '../models/character_pose.dart';
+
 import 'package:flutter/material.dart';
 
 import 'edutainer_context.dart';
@@ -50,11 +51,19 @@ class ArmsPainter {
     final path = Path()
       ..moveTo(p1a.dx, p1a.dy)
       ..lineTo(p2a.dx, p2a.dy)
-      ..arcTo(Rect.fromCircle(center: c2, radius: r2), ang + phi, -2 * phi,
-          false)
+      ..arcTo(
+        Rect.fromCircle(center: c2, radius: r2),
+        ang + phi,
+        -2 * phi,
+        false,
+      )
       ..lineTo(p1b.dx, p1b.dy)
-      ..arcTo(Rect.fromCircle(center: c1, radius: r1), ang - phi,
-          -(2 * math.pi - 2 * phi), false)
+      ..arcTo(
+        Rect.fromCircle(center: c1, radius: r1),
+        ang - phi,
+        -(2 * math.pi - 2 * phi),
+        false,
+      )
       ..close();
     canvas.drawPath(
       path,

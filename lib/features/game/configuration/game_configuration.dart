@@ -17,5 +17,5 @@ abstract final class GameConfiguration {
   static const wrongAnswerTimePenalty = -0.05;
   static const correctAnswerTimeBonus = 0.1;
   static const criticalTimeThreshold = 0.3;
-  static const Duration gameDuration=Duration(seconds: 5);
+  static const Duration gameDuration = Duration(seconds: 5);
 }

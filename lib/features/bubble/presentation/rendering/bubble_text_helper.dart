@@ -4,7 +4,7 @@ import 'package:flutter/painting.dart';
 
 /// Helper utility for creating and auto-fitting text inside bubble components and widgets.
 class BubbleTextHelper {
-  /// Calcule une ellipse qui laisse la place au texte sans agrandir sa police.
+  /// Calculates an ellipse size that accommodates the text without enlarging the font.
   static Size bubbleSizeForText({
     required String text,
     required double maxWidth,
@@ -23,8 +23,7 @@ class BubbleTextHelper {
     final width = (painter.width + 72).clamp(110.0, maxWidth).toDouble();
     painter.dispose();
 
-    // Un texte long étire l'ellipse horizontalement; un texte court garde
-    // une forme verticale, comme sur l'illustration.
+    // Long text stretches the ellipse horizontally; short text maintains a vertical shape.
     final wrappedText = TextPainter(
       text: TextSpan(text: text, style: style),
       textDirection: TextDirection.ltr,
@@ -37,6 +36,11 @@ class BubbleTextHelper {
     return Size(width, height);
   }
 
+  /// Creates a [TextPainter] that auto-fits [text] inside [box].
+  ///
+  /// Shrinks the font size until the text fits within [widthFactor] of [box.width]
+  /// and [heightFactor] of [box.height], respecting [maxLines].
+  /// Pass [autoFit] = false to disable font shrinking.
   static TextPainter createTextPainter({
     required String text,
     required TextStyle style,

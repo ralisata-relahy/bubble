@@ -11,7 +11,7 @@ class HudButton extends StatefulWidget {
     this.color = const Color.fromARGB(255, 198, 255, 43),
     this.secondaryColor = const Color.fromARGB(255, 158, 146, 10),
     this.iconColor = Colors.white,
-    this.alignment=Alignment.bottomLeft,
+    this.alignment = Alignment.bottomLeft,
     this.scale = 0.6,
   });
 
@@ -20,6 +20,7 @@ class HudButton extends StatefulWidget {
   final VoidCallback onPressed;
   final Alignment alignment;
   final double scale;
+
   /// Couleur neon principale (contour, halo, haut du degrade).
   final Color color;
 

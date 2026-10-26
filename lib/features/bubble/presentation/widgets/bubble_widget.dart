@@ -101,6 +101,8 @@ class BubblePainter extends CustomPainter {
   bool shouldRepaint(covariant BubblePainter oldDelegate) {
     return oldDelegate.style != style ||
         oldDelegate.text != text ||
-        oldDelegate.textColor != textColor;
+        oldDelegate.textColor != textColor ||
+        oldDelegate.maxLines != maxLines ||
+        oldDelegate.autoFit != autoFit;
   }
 }

@@ -14,31 +14,31 @@ enum Mood {
 }
 
 // =============================================================================
-// Paramètres d'humeur
+// ParamÃ¨tres d'humeur
 // =============================================================================
 
 /// Indexed parameter keys shared by default values and mood-specific presets.
 enum MoodParameter {
   // yeux
-  lid, // 0 ouvert .. 1 fermé (paupière au repos)
-  lidSlant, // + en colère (coins intérieurs bas), - triste
+  lid, // 0 ouvert .. 1 fermÃ© (paupiÃ¨re au repos)
+  lidSlant, // + en colÃ¨re (coins intÃ©rieurs bas), - triste
   eyeScale,
   pupil, // multiplicateur de la pupille
   gazeY, // biais vertical du regard (px)
   // sourcils
-  browLift, // px, négatif = vers le haut
-  browTilt, // degrés, + colère, - tristesse
+  browLift, // px, nÃ©gatif = vers le haut
+  browTilt, // degrÃ©s, + colÃ¨re, - tristesse
   // bouche
   mW, // multiplicateur de largeur
   mCorner, // y des coins de la bouche
-  mTop, // y du point de contrôle de la lèvre supérieure
+  mTop, // y du point de contrÃ´le de la lÃ¨vre supÃ©rieure
   mBottom, // y du bas de l'ouverture
   tongue, // 0..1
   tooth, // 0..1
   blush, // multiplicateur des joues
-  // oreilles / cœur
-  earDroop, // degrés, + tombantes, - dressées
-  heartTilt, // degrés
+  // oreilles / cÅ“ur
+  earDroop, // degrÃ©s, + tombantes, - dressÃ©es
+  heartTilt, // degrÃ©s
   heartScale,
   heartPulse, // amplitude du battement
   heartRate, // Hz
@@ -49,7 +49,7 @@ enum MoodParameter {
   bobRate, // Hz
   shake, // px (tremblement)
   slump, // 0..~0.05 affaissement
-  wagAmp, // degrés de la queue
+  wagAmp, // degrÃ©s de la queue
   wagRate, // Hz
   // effets (alpha 0..1)
   tear,
@@ -71,7 +71,7 @@ class MoodParams {
     return MoodParams._([for (final k in MoodParameter.values) m[k]!]);
   }
 
-  /// Paramètres d'une humeur donnée.
+  /// ParamÃ¨tres d'une humeur donnÃ©e.
   factory MoodParams.of(Mood mood) => _presets[mood]!;
 
   /// Interpolates every pose parameter for a smooth mood transition.
@@ -82,7 +82,7 @@ class MoodParams {
   }
 }
 
-// "happy" = les valeurs par défaut.
+// "happy" = les valeurs par dÃ©faut.
 const Map<MoodParameter, double> _defaults = {
   MoodParameter.lid: 0,
   MoodParameter.lidSlant: 0,

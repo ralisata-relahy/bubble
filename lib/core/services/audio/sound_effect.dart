@@ -64,6 +64,7 @@ class SoundEffects {
   final _random = math.Random();
   Future<void>? _initFuture;
   bool _ready = false;
+
   /// Enables or suppresses playback without discarding the initialized cache.
   bool enabled = true;
   int _lastTick = 0;

@@ -1,4 +1,4 @@
-import 'dart:math';
+﻿import 'dart:math';
 import 'dart:ui'
     show
         BlurStyle,
@@ -29,12 +29,12 @@ import 'package:bubble/core/physics/bubble_collision_resolver.dart';
 import 'package:bubble/features/bubble/models/bubble_config.dart';
 import 'package:bubble/features/bubble/presentation/rendering/bubble_text_helper.dart';
 
-/// Bulle secondaire de savoir qui jaillit lors de l'eclatement d'une bulle cible.
-/// Partage la physique de collision de la bulle principale avec un rendu dedie.
+/// Secondary knowledge bubble that bursts out when a target bubble is popped.
+/// Shares the main bubble's collision physics with dedicated rendering.
 class KnowledgeBubbleComponent extends PositionComponent
     with HasGameReference<FlameGame>
     implements BubblePhysicsBody {
-  /// Cree une bulle de savoir configuree pour une manche donnee.
+  /// Creates a knowledge bubble configured for the current round.
   KnowledgeBubbleComponent({
     required Vector2 position,
     required this.config,
@@ -51,23 +51,23 @@ class KnowledgeBubbleComponent extends PositionComponent
          anchor: Anchor.center,
        );
 
-  /// Configuration esthetique et cinematique de la bulle.
+  /// Visual and kinematic configuration of the bubble.
   final BubbleConfig config;
   static const double _sizeScale = 0.8;
 
-  /// Couleur du texte affiche au centre.
+  /// Text color displayed at the center.
   final Color textColor;
 
-  /// Marqueur indiquant si la bulle provient d'un eclatement de cible.
+  /// Flag indicating whether this bubble originates from a target pop.
   final bool isBurstBubble;
 
-  /// Generateur pseudo-aleatoire pour les variations de phase et d'ejection.
+  /// Pseudo-random generator for phase and ejection variance.
   final Random _random;
 
-  /// Duree de la transition d'apparition en secondes.
+  /// Duration of the appearance animation in seconds.
   static const double _appearDuration = 0.45;
 
-  // Variables internes de mouvement cinematique.
+  // Internal kinematic motion variables.
   late Vector2 _dir;
   late Vector2 _perp;
   late final Vector2 _centerBase;
@@ -76,7 +76,7 @@ class KnowledgeBubbleComponent extends PositionComponent
   bool _removed = false;
   double _appear = 0;
 
-  // Geometrie locale, rendu et typographie.
+  // Local geometry, rendering, and typography fields.
   late final double _d;
   late final Offset _c;
   late final Rect _bubbleRect;
@@ -88,7 +88,7 @@ class KnowledgeBubbleComponent extends PositionComponent
   late final Paint _highlightPaint;
   late final TextPainter _tp;
 
-  // Implementation du contrat physique BubblePhysicsBody.
+  // BubblePhysicsBody contract implementation.
   @override
   Vector2 get moveDir => _dir;
 
@@ -116,20 +116,20 @@ class KnowledgeBubbleComponent extends PositionComponent
   @override
   bool get isCollisionActive => _appear >= 0.5 && !_removed;
 
-  /// Indique que la bulle a entierement quitte la fenetre de jeu.
+  /// Returns true once the bubble has fully exited the game viewport.
   bool get hasLeftScreen => _removed;
 
   @override
   double get collisionRadius => _d / 2;
 
-  /// Delegue la resolution de collision au moteur physique commun.
+  /// Delegates collision resolution to the shared physics engine.
   void checkAndResolveCollision(dynamic other, {double padding = 6.0}) {
     if (other is BubblePhysicsBody) {
       BubbleCollisionResolver.resolve(this, other, padding: padding);
     }
   }
 
-  /// Initialise la geometrie, les vecteurs de deplacement et le peintre de texte.
+  /// Initialises geometry, movement vectors, and the text painter.
   @override
   Future<void> onLoad() async {
     _dir = config.directionVector.clone();
@@ -137,11 +137,10 @@ class KnowledgeBubbleComponent extends PositionComponent
       _dir = Vector2(1, 1).normalized();
     }
 
-    // Assure une trajectoire purement verticale vers le haut ou vers le bas
-    // pour sortir uniquement par le haut ou le bas de l'ecran.
+    // Ensures a purely vertical trajectory so the bubble exits only through the top or bottom edge.
     final goUp = _dir.y < 0 || (_dir.y == 0 && _random.nextBool());
     final angleVariation =
-        (_random.nextDouble() - 0.5) * 0.4; // Legere dispersion angulaire
+        (_random.nextDouble() - 0.5) * 0.4; // Slight angular spread
     _dir = Vector2(
       sin(angleVariation),
       goUp ? -cos(angleVariation) : cos(angleVariation),
@@ -187,7 +186,7 @@ class KnowledgeBubbleComponent extends PositionComponent
       ..maskFilter = MaskFilter.blur(BlurStyle.normal, _d * 0.025);
     _highlightPaint = Paint()..color = const Color(0xD9E7C7F5);
 
-    // Initialisation du TextPainter avec mise en page automatique responsive.
+    // Initialise the TextPainter with automatic responsive layout.
     final inner = Size(size.x, size.y);
     _tp = BubbleTextHelper.createTextPainter(
       text: config.text,
@@ -211,13 +210,13 @@ class KnowledgeBubbleComponent extends PositionComponent
     );
   }
 
-  /// Met a jour la position, l'animation d'eclosion et verifie les limites de l'ecran.
+  /// Updates position, hatching animation, and screen-boundary check.
   @override
   void update(double dt) {
     super.update(dt);
     if (_removed) return;
 
-    // Progression de l'echelle d'apparition (effet elastique doux).
+    // Progresses the appearance scale (soft elastic effect).
     _age += dt;
     _appear = Curves.easeOutBack.transform(
       (_age / _appearDuration).clamp(0.0, 1.0),
@@ -225,7 +224,7 @@ class KnowledgeBubbleComponent extends PositionComponent
 
     _t += dt;
 
-    // Ajustement de la vitesse pendant les phases de freeze du jeu.
+    // Speed multiplier adjustment during game freeze phases.
     var speedMultiplier = 1.0;
     final host = game as KnowledgeBubbleHost;
     if (host.isFrozen) {
@@ -246,15 +245,15 @@ class KnowledgeBubbleComponent extends PositionComponent
       position.setFrom(_centerBase + wave);
     }
 
-    // Suppression propre une fois completement sortie de la fenetre de jeu (4 cotes).
+    // Clean removal once fully exited the game viewport (all 4 sides).
     if (_isOffScreen()) {
       _removed = true;
       removeFromParent();
     }
   }
 
-  /// Verifie si la bulle a integralement quitte l'ecran par l'un des 4 bords.
-  /// Les bulles de savoir ne rebondissent pas : elles sortent librement.
+  /// Returns true if the bubble has fully exited through any of the 4 screen edges.
+  /// Knowledge bubbles do not bounce — they exit freely.
   bool _isOffScreen() {
     final r = _d / 2;
     if (position.x - r > game.size.x) return true;
@@ -264,14 +263,14 @@ class KnowledgeBubbleComponent extends PositionComponent
     return false;
   }
 
-  /// Libere les ressources graphiques lors de la destruction du composant.
+  /// Releases rendering resources when the component is destroyed.
   @override
   void onRemove() {
     if (isLoaded) _tp.dispose();
     super.onRemove();
   }
 
-  /// Rendu superpose : fond de la bulle, texte centre puis reflets brillants.
+  /// Layered rendering: bubble body, centred text, then specular gloss.
   @override
   void render(Canvas canvas) {
     if (_appear <= 0.001) return;
@@ -282,12 +281,12 @@ class KnowledgeBubbleComponent extends PositionComponent
       ..scale(_appear)
       ..translate(-_c.dx, -_c.dy);
 
-    // Corps violet lumineux et ombrage doux pour donner du volume.
+    // Luminous purple body with soft shading for volume.
     canvas
       ..drawOval(_bubbleRect, _bodyPaint)
       ..drawOval(_bubbleRect, _shadePaint);
 
-    // Texte au centre sous le reflet principal.
+    // Text centred below the main gloss layer.
     canvas
       ..save()
       ..translate(_c.dx, _c.dy);

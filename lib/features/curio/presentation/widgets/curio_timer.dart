@@ -4,7 +4,7 @@ import '../../../game/configuration/game_configuration.dart';
 import 'character_time_gauge.dart';
 import '../../../game/presentation/bubble_game.dart';
 
-/// Place Curio, sa jauge et la bordure néon d'alerte dans l'overlay Flutter.
+/// Places Curio, the time gauge, and the critical alert neon border within the Flutter overlay.
 class CurioOverlay extends StatefulWidget {
   const CurioOverlay({required this.game, super.key});
 
@@ -42,7 +42,7 @@ class _CurioOverlayState extends State<CurioOverlay>
 
     return Stack(
       children: [
-        // Bordure néon rouge clignotante UNIQUEMENT sur les bords de l'écran
+        // Flashing red neon border on screen edges during critical low time
         ValueListenableBuilder<bool>(
           valueListenable: widget.game.gameController.isCriticalNotifier,
           builder: (context, isCritical, _) {
@@ -63,7 +63,7 @@ class _CurioOverlayState extends State<CurioOverlay>
           },
         ),
 
-        // Jauge et personnage Curio
+        // Curio character and time gauge bar
         SafeArea(
           child: Align(
             alignment: Alignment.topLeft,
@@ -90,7 +90,7 @@ class _CurioOverlayState extends State<CurioOverlay>
   }
 }
 
-/// Dessine une bordure néon brillante UNIQUEMENT sur les contours de l'écran
+/// Paints a glowing neon border around the outer edges of the screen.
 class _ScreenNeonBorderPainter extends CustomPainter {
   _ScreenNeonBorderPainter({required this.opacity});
 
@@ -100,26 +100,26 @@ class _ScreenNeonBorderPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final rect = Offset.zero & size;
 
-    // 1) Halo lumineux externe (flou néon)
+    // 1. External glow halo (soft neon bloom)
     final glowPaint = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = 30.0
       ..color = Colors.redAccent.withValues(alpha: opacity * 0.6)
       ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 10.0);
 
-    // 2) Ligne néon principale
+    // 2. Primary neon stroke
     final strokePaint = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = 4.0
       ..color = Colors.redAccent.withValues(alpha: opacity);
 
-    // 3) Cœur blanc brillant au centre du trait
+    // 3. Bright white core along center stroke
     final corePaint = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.5
       ..color = Colors.white.withValues(alpha: opacity * 0.85);
 
-    // Dessin uniquement le long du contour rectangulaire (centre 100 % transparent)
+    // Draw only along the outer rectangular contour (center transparent)
     canvas.drawRect(rect, glowPaint);
     canvas.drawRect(rect, strokePaint);
     canvas.drawRect(rect, corePaint);

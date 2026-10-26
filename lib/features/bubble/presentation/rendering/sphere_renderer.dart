@@ -3,7 +3,8 @@
 import 'dart:math';
 import 'dart:ui';
 
-import 'package:flutter/material.dart' show Alignment, RadialGradient, SweepGradient;
+import 'package:flutter/material.dart'
+    show Alignment, RadialGradient, SweepGradient;
 
 import 'package:bubble/features/bubble/models/bubble_style.dart';
 
@@ -13,11 +14,11 @@ import 'bubble_renderer.dart';
 /// Drawn in a circle then stretched to `size`.
 class SphereRenderer implements BubbleRenderer {
   SphereRenderer(BubbleStyle s)
-      : _w = s.size.width,
-        _h = s.size.height,
-        _r = max(s.size.width, s.size.height) / 2,
-        _base = s.baseColor,
-        _phase = Random().nextDouble() * 2 * pi {
+    : _w = s.size.width,
+      _h = s.size.height,
+      _r = max(s.size.width, s.size.height) / 2,
+      _base = s.baseColor,
+      _phase = Random().nextDouble() * 2 * pi {
     final r = _r;
     final c = Offset(r, r);
     _c = c;
@@ -55,25 +56,29 @@ class SphereRenderer implements BubbleRenderer {
     _iris = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = r * 0.09
-      ..shader = SweepGradient(colors: [
-        const Color(0xFFFF7BD5).withValues(alpha: 0.5 * k),
-        const Color(0xFF6CF0FF).withValues(alpha: 0.5 * k),
-        const Color(0xFFFFF27A).withValues(alpha: 0.4 * k),
-        const Color(0xFFB07BFF).withValues(alpha: 0.5 * k),
-        const Color(0xFFFF7BD5).withValues(alpha: 0.5 * k),
-      ]).createShader(_rect);
+      ..shader = SweepGradient(
+        colors: [
+          const Color(0xFFFF7BD5).withValues(alpha: 0.5 * k),
+          const Color(0xFF6CF0FF).withValues(alpha: 0.5 * k),
+          const Color(0xFFFFF27A).withValues(alpha: 0.4 * k),
+          const Color(0xFFB07BFF).withValues(alpha: 0.5 * k),
+          const Color(0xFFFF7BD5).withValues(alpha: 0.5 * k),
+        ],
+      ).createShader(_rect);
 
     // Second iridescent film, thinner, counter-rotating => "oil / soap" effect
     _iris2 = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = r * 0.05
-      ..shader = SweepGradient(colors: [
-        const Color(0xFF6CF0FF).withValues(alpha: 0.35 * k),
-        const Color(0xFFB07BFF).withValues(alpha: 0.35 * k),
-        const Color(0xFFFF7BD5).withValues(alpha: 0.3 * k),
-        const Color(0xFFFFF27A).withValues(alpha: 0.35 * k),
-        const Color(0xFF6CF0FF).withValues(alpha: 0.35 * k),
-      ]).createShader(_rect);
+      ..shader = SweepGradient(
+        colors: [
+          const Color(0xFF6CF0FF).withValues(alpha: 0.35 * k),
+          const Color(0xFFB07BFF).withValues(alpha: 0.35 * k),
+          const Color(0xFFFF7BD5).withValues(alpha: 0.3 * k),
+          const Color(0xFFFFF27A).withValues(alpha: 0.35 * k),
+          const Color(0xFF6CF0FF).withValues(alpha: 0.35 * k),
+        ],
+      ).createShader(_rect);
 
     _rimColor = s.rimColor ?? base;
     _rimAlpha = s.rimAlpha;
@@ -85,8 +90,7 @@ class SphereRenderer implements BubbleRenderer {
     // Highlights
     _arcTL = _stroke(r * 0.05, base.withValues(alpha: 0.85));
     _arcBR = _stroke(r * 0.05, const Color(0xFFDCEBFF).withValues(alpha: 0.6));
-    _specGlow = Paint()
-      ..color = const Color(0xFFFFFFFF).withValues(alpha: 0.5);
+    _specGlow = Paint()..color = const Color(0xFFFFFFFF).withValues(alpha: 0.5);
     _spec = Paint()..color = const Color(0xFFFFFFFF).withValues(alpha: 0.95);
 
     // Direction: top-left, centered on crescent _arcTL (3.3 → 4.6 rad).
@@ -100,8 +104,8 @@ class SphereRenderer implements BubbleRenderer {
     final radialScale = sqrt(pow(cos(theta) * sx, 2) + pow(sin(theta) * sy, 2));
     final thick = (1 / radialScale).clamp(1.0, 1.8).toDouble();
 
-    const span = 0.85;              // angular span (~49°)
-    final mid = r * 0.74;           // arc radius, inside _arcTL (0.9)
+    const span = 0.85; // angular span (~49°)
+    final mid = r * 0.74; // arc radius, inside _arcTL (0.9)
     final half = r * 0.055 * thick; // maximum half-thickness
 
     double hw(double u) => half * pow(sin(pi * pow(u, 0.85)), 0.9).toDouble();
@@ -124,14 +128,15 @@ class SphereRenderer implements BubbleRenderer {
     path.close();
     _specPath = path;
 
-    _specHot = pt(0.3, mid);  // hot spot in the bulge
+    _specHot = pt(0.3, mid); // hot spot in the bulge
     _specDot = pt(1.22, mid); // small dot right after tip
     update(0);
   }
 
   final double _w, _h, _r;
   final Color _base;
-  final double _phase; // offsets bubbles from each other so they are not synchronous
+  final double
+  _phase; // offsets bubbles from each other so they are not synchronous
   late final Offset _c;
   late final Rect _rect;
   late final Color _rimColor;
@@ -167,17 +172,14 @@ class SphereRenderer implements BubbleRenderer {
     _pokeT = 0;
   }
 
-    void _updateCaustic() {
-    // Shader créé une seule fois (le mouvement est fait par le canvas)
+  void _updateCaustic() {
+    // Shader is created once; motion is handled by the canvas.
     if (_causticReady) return;
     _causticReady = true;
     _caustic.shader = RadialGradient(
       center: const Alignment(0.45, 0.55),
       radius: 0.55,
-      colors: [
-        _base.withValues(alpha: 0.30),
-        _base.withValues(alpha: 0.0),
-      ],
+      colors: [_base.withValues(alpha: 0.30), _base.withValues(alpha: 0.0)],
     ).createShader(_rect);
   }
 
@@ -203,7 +205,10 @@ class SphereRenderer implements BubbleRenderer {
     var a = 0.022 * sin(p * 2.0) + 0.008 * sin(p * 3.4 + 1.7);
     if (_pokeT < 6) {
       _pokeT += dt;
-      a += (_poke * exp(-3.2 * _pokeT) * sin(18 * _pokeT) * 0.12).clamp(-0.12, 0.12);
+      a += (_poke * exp(-3.2 * _pokeT) * sin(18 * _pokeT) * 0.12).clamp(
+        -0.12,
+        0.12,
+      );
     }
     _sx = 1 + a;
     _sy = 1 / _sx;
@@ -213,7 +218,9 @@ class SphereRenderer implements BubbleRenderer {
     // _iris2.strokeWidth = _r * (0.05 + 0.012 * sin(p * 2.1 + 1));
 
     // Edge glimmers slightly
-    _rim.color = _rimColor.withValues(alpha: (_rimAlpha * (0.85 + 0.15 * sin(p * 1.8))).clamp(0.0, 1.0));
+    _rim.color = _rimColor.withValues(
+      alpha: (_rimAlpha * (0.85 + 0.15 * sin(p * 1.8))).clamp(0.0, 1.0),
+    );
 
     _causticAcc += dt;
     if (_causticAcc >= 0.05) {
@@ -227,7 +234,7 @@ class SphereRenderer implements BubbleRenderer {
     final p = _t + _phase;
     c.drawCircle(_c, _r, _body);
     c.drawCircle(_c, _r, _shade);
-        c
+    c
       ..save()
       ..translate(_r * 0.05 * sin(p * 0.7), _r * 0.05 * cos(p * 0.9))
       ..drawCircle(_c, _r * 0.97, _caustic)
@@ -260,8 +267,20 @@ class SphereRenderer implements BubbleRenderer {
     final p = _t + _phase;
 
     // Floating light crescents
-    c.drawArc(_arcRect(0.9), 3.3 + 0.08 * sin(p * 0.9), 1.3 + 0.12 * sin(p * 1.4), false, _arcTL);
-    c.drawArc(_arcRect(0.92), 0.25 - 0.06 * sin(p * 1.1), 0.95 + 0.1 * sin(p * 1.7), false, _arcBR);
+    c.drawArc(
+      _arcRect(0.9),
+      3.3 + 0.08 * sin(p * 0.9),
+      1.3 + 0.12 * sin(p * 1.4),
+      false,
+      _arcTL,
+    );
+    c.drawArc(
+      _arcRect(0.92),
+      0.25 - 0.06 * sin(p * 1.1),
+      0.95 + 0.1 * sin(p * 1.7),
+      false,
+      _arcBR,
+    );
 
     // Specular reflection: shimmering concentric crescent
     final tw = 0.85 + 0.15 * sin(p * 2.6 + 1);
@@ -272,7 +291,7 @@ class SphereRenderer implements BubbleRenderer {
       ..rotate(_specTheta + 0.05 * sin(p * 1.2));
 
     _spec.color = white.withValues(alpha: 0.95 * tw);
-    c.drawPath(_specPath, _spec);             // core
+    c.drawPath(_specPath, _spec); // core
     c.drawCircle(_specHot, r * 0.038, _spec); // hot spot
 
     _spec.color = white.withValues(alpha: 0.6 * tw);

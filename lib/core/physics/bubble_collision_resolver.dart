@@ -4,34 +4,34 @@ import 'package:flame/components.dart';
 
 /// Contract shared by moving bubble components that take part in collisions.
 abstract class BubblePhysicsBody {
-  /// Position actuelle dans l'espace du jeu.
+  /// Current 2D position in game world coordinates.
   Vector2 get position;
 
-  /// Rayon de collision circulaire.
+  /// Circular collision boundary radius.
   double get collisionRadius;
 
-  /// Indique si la bulle peut entrer en collision dans son etat actuel.
+  /// Indicates whether the bubble can currently participate in collisions.
   bool get isCollisionActive;
 
-  /// Vecteur unitaire de direction de translation.
+  /// Normalized direction unit vector for linear drift.
   Vector2 get moveDir;
 
-  /// Vecteur unitaire perpendiculaire a la direction pour l'oscillation.
+  /// Perpendicular unit vector for wave oscillation.
   Vector2 get movePerp;
 
-  /// Position centrale de base (hors deplacement oscillatoire).
+  /// Un-oscillated center base position.
   Vector2 get centerBase;
 
-  /// Vitesse de deplacement en pixels par seconde.
+  /// Movement speed in logical pixels per second.
   double get speed;
 
-  /// Amplitude de l'oscillation sinusoidale en pixels.
+  /// Sinusoidal wave oscillation amplitude in pixels.
   double get waveAmplitude;
 
-  /// Frequence de l'oscillation sinusoidale en radians par seconde.
+  /// Wave oscillation angular frequency in radians per second.
   double get waveFrequency;
 
-  /// Temps accumule de l'onde sinusoidale.
+  /// Accumulated elapsed time for the wave equation.
   double get waveTime;
   set waveTime(double value);
 }
@@ -44,29 +44,29 @@ class BubbleCollisionResolver {
   /// Default extra gap maintained between colliding bubble radii.
   static const double defaultPadding = 6.0;
 
-  /// Coefficient de restitution elastique pour un rebond ferme et naturel.
+  /// Elastic restitution coefficient for realistic bubble rebounds.
   static const double _restitution = 1.0;
 
-  /// Distance minimale en dessous de laquelle une direction par defaut est appliquee.
+  /// Minimum separation distance threshold before applying fallback separation.
   static const double _epsilon = 0.001;
 
-  /// Verifie et resout la collision elastique entre deux corps de bulle.
+  /// Detects and resolves elastic collision between two bubble physics bodies.
   static void resolve(
     BubblePhysicsBody bodyA,
     BubblePhysicsBody bodyB, {
     double padding = defaultPadding,
   }) {
-    // Verifie l'etat actif des deux bulles.
+    // Check collision active flags for both bodies.
     if (!bodyA.isCollisionActive || !bodyB.isCollisionActive) return;
 
     final delta = bodyB.position - bodyA.position;
     var distance = delta.length;
     final minDistance = bodyA.collisionRadius + bodyB.collisionRadius + padding;
 
-    // Pas de chevauchement detecte.
+    // No overlap detected.
     if (distance >= minDistance) return;
 
-    // 1) Calcul du vecteur normal unitaire entre les deux centres.
+    // 1. Calculate normal unit vector between centers.
     Vector2 normal;
     if (distance < _epsilon) {
       // Exact overlap has no center-to-center direction; infer one from motion.
@@ -103,7 +103,7 @@ class BubbleCollisionResolver {
     final vbNormal = velocityB.dot(normal);
     final relativeVelocity = vaNormal - vbNormal;
 
-    // Les bulles se rapprochent : on applique l'impulsion de rebond.
+    // Bubbles are moving towards each other: apply rebound impulse.
     if (relativeVelocity > 0) {
       final impulse =
           (1.0 + _restitution) * relativeVelocity / (1.0 / massA + 1.0 / massB);
@@ -111,7 +111,7 @@ class BubbleCollisionResolver {
       velocityA.sub(normal * (impulse / massA));
       velocityB.add(normal * (impulse / massB));
 
-      // Mise a jour de la bulle A.
+      // Update body A kinematics.
       if (velocityA.length > _epsilon) {
         final oldPerpA = bodyA.movePerp.clone();
         bodyA.moveDir.setFrom(velocityA.normalized());
@@ -119,7 +119,7 @@ class BubbleCollisionResolver {
         _preserveWaveContinuity(bodyA, oldPerpA);
       }
 
-      // Mise a jour de la bulle B.
+      // Update body B kinematics.
       if (velocityB.length > _epsilon) {
         final oldPerpB = bodyB.movePerp.clone();
         bodyB.moveDir.setFrom(velocityB.normalized());
@@ -129,27 +129,27 @@ class BubbleCollisionResolver {
     }
   }
 
-  /// Recalcule la phase de l'onde pour eliminer toute discontinuite spatiale.
-  /// Empeche le saut instantane de position lors du basculement du vecteur orthogonal.
+  /// Recalculates wave phase to eliminate spatial discontinuities upon rebound.
+  /// Prevents visual jitter when the orthogonal oscillation vector pivots.
   static void _preserveWaveContinuity(BubblePhysicsBody body, Vector2 oldPerp) {
     if (body.waveAmplitude <= _epsilon || body.waveFrequency <= _epsilon) {
       return;
     }
 
-    // Calcule le deplacement ondulatoire precedent.
+    // Calculate previous oscillatory offset.
     final oldWaveOffset =
         oldPerp *
         (math.sin(body.waveTime * body.waveFrequency) * body.waveAmplitude);
 
-    // Projette le deplacement precedent sur le nouveau vecteur orthogonal.
+    // Project previous displacement onto the new orthogonal vector.
     final projection = oldWaveOffset.dot(body.movePerp);
     final normalizedScalar = (projection / body.waveAmplitude).clamp(-1.0, 1.0);
 
-    // Deduit l'angle de phase coherent pour la nouvelle orientation.
+    // Derive coherent phase angle for the new direction.
     final targetAngle = math.asin(normalizedScalar);
     body.waveTime = targetAngle / body.waveFrequency;
 
-    // Ajuste centerBase pour que la somme centerBase + wave reste parfaitement continue.
+    // Adjust centerBase so the sum (centerBase + wave) remains completely continuous.
     final newWaveOffset =
         body.movePerp *
         (math.sin(body.waveTime * body.waveFrequency) * body.waveAmplitude);

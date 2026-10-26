@@ -1,17 +1,19 @@
 import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
-/// Draws a neon laser cage
+/// Draws a neon laser cage rendered in two passes: back edges + depth
+/// connectors, then front face bars with an electric flicker effect.
 class LaserCagePainter extends CustomPainter {
   LaserCagePainter({
     required this.color,
     required this.time,
     required this.front,
     required this.barCount,
-    this.widthFactor = 0.94, 
-    this.heightFactor = 0.72, 
-    this.centerYFactor = 0.50, 
-    this.depth = 0.85, 
+    this.widthFactor = 0.94,
+    this.heightFactor = 0.72,
+    this.centerYFactor = 0.50,
+    this.depth = 0.85,
   });
 
   final Color color;

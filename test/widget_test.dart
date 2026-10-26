@@ -25,14 +25,14 @@ void main() {
       expect(bubble.canReceiveLaserHit, isFalse);
     });
 
-    test('declenche onTargetImpact lors dune bonne reponse', () {
+    test('triggers onTargetImpact on correct answer', () {
       var targetImpactCalled = false;
       var wrongImpactCalled = false;
 
       final bubble = Bubble(
         position: Vector2(100, 100),
-        config: const BubbleConfig(text: 'Bonne'),
-        canPop: (text) => text == 'Bonne',
+        config: const BubbleConfig(text: 'Correct'),
+        canPop: (text) => text == 'Correct',
         onTargetImpact: (_) => targetImpactCalled = true,
         onWrongImpact: () => wrongImpactCalled = true,
       );
@@ -43,14 +43,14 @@ void main() {
       expect(wrongImpactCalled, isFalse);
     });
 
-    test('declenche onWrongImpact lors dune mauvaise reponse', () {
+    test('triggers onWrongImpact on incorrect answer', () {
       var targetImpactCalled = false;
       var wrongImpactCalled = false;
 
       final bubble = Bubble(
         position: Vector2(100, 100),
-        config: const BubbleConfig(text: 'Mauvaise'),
-        canPop: (text) => text == 'Bonne',
+        config: const BubbleConfig(text: 'Wrong'),
+        canPop: (text) => text == 'Correct',
         onTargetImpact: (_) => targetImpactCalled = true,
         onWrongImpact: () => wrongImpactCalled = true,
       );
@@ -61,24 +61,27 @@ void main() {
       expect(wrongImpactCalled, isTrue);
     });
 
-    test('ne traite quune fois le pop dune bulle deja en explosion', () {
-      var popCount = 0;
-      var targetImpactCount = 0;
-      final bubble = Bubble(
-        position: Vector2(100, 100),
-        config: const BubbleConfig(text: 'Bonne'),
-        canPop: (text) => text == 'Bonne',
-        onPopped: (_, _) => popCount++,
-        onTargetImpact: (_) => targetImpactCount++,
-      );
+    test(
+      'processes bubble pop only once even when burst is called repeatedly',
+      () {
+        var popCount = 0;
+        var targetImpactCount = 0;
+        final bubble = Bubble(
+          position: Vector2(100, 100),
+          config: const BubbleConfig(text: 'Correct'),
+          canPop: (text) => text == 'Correct',
+          onPopped: (_, _) => popCount++,
+          onTargetImpact: (_) => targetImpactCount++,
+        );
 
-      bubble
-        ..pop()
-        ..pop();
+        bubble
+          ..pop()
+          ..pop();
 
-      expect(popCount, 1);
-      expect(targetImpactCount, 1);
-    });
+        expect(popCount, 1);
+        expect(targetImpactCount, 1);
+      },
+    );
   });
 
   group('Bubble label fitting', () {

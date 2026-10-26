@@ -12,6 +12,8 @@ class EdutainerTarget {
   final String? label;
 }
 
+/// Animated Edutainer character widget that drives pose, emotion,
+/// laser targets, and an optional laser cage via a [Ticker].
 class AiBudddyEdutainment extends StatefulWidget {
   const AiBudddyEdutainment({
     super.key,
@@ -32,22 +34,22 @@ class AiBudddyEdutainment extends StatefulWidget {
 
   final double? size;
 
-  // Body color
+  /// Optional tint applied to the character body gradient.
   final Color? bodyColor;
 
-  // Saucer color
+  /// Optional tint applied to the saucer and orb.
   final Color? saucerColor;
 
   final Color laserColor;
   final bool showShadow;
 
-  // Laser targets (ignored while caged)
+  /// Laser targets to aim at (ignored while caged).
   final List<EdutainerTarget> targets;
 
-  // Pause or resume the animation.
+  /// Whether the animation ticker is running.
   final bool animate;
 
-  // Animation speed multiplier
+  /// Animation playback speed multiplier (1.0 = normal).
   final double speed;
 
   /// Emotion preset
@@ -124,7 +126,8 @@ class _AiBudddyEdutainmentState extends State<AiBudddyEdutainment>
       _syncTargets();
     }
 
-    final speedChanged = old.speed != widget.speed ||
+    final speedChanged =
+        old.speed != widget.speed ||
         old.emotion != widget.emotion ||
         cagedChanged;
 
@@ -146,7 +149,8 @@ class _AiBudddyEdutainmentState extends State<AiBudddyEdutainment>
   }
 
   EdutainerPose _poseAt(double t) {
-    final base = widget.pose ??
+    final base =
+        widget.pose ??
         widget.poseBuilder?.call(t) ??
         EdutainerPose.idle(t, targets: _positions, labels: _labels);
     return base.withEmotion(_emotion);

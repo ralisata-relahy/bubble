@@ -10,9 +10,9 @@ class _FakeBubbleBody implements BubblePhysicsBody {
     required this.moveDir,
     this.waveAmplitude = 15.0,
     this.waveFrequency = 2.0,
-  })  : centerBase = position.clone(),
-        movePerp = Vector2(-moveDir.y, moveDir.x),
-        waveTime = 0.0;
+  }) : centerBase = position.clone(),
+       movePerp = Vector2(-moveDir.y, moveDir.x),
+       waveTime = 0.0;
 
   @override
   final Vector2 position;
@@ -47,7 +47,7 @@ class _FakeBubbleBody implements BubblePhysicsBody {
 
 void main() {
   group('BubbleCollisionResolver', () {
-    test('repousse les bulles en cas de chevauchement', () {
+    test('pushes overlapping bubbles apart', () {
       final a = _FakeBubbleBody(
         position: Vector2(100, 100),
         collisionRadius: 30,
@@ -65,7 +65,7 @@ void main() {
       expect(distanceAfterResolution, greaterThanOrEqualTo(65.99));
     });
 
-    test('inverse les composantes de vitesse le long de la normale', () {
+    test('reverses velocity components along the normal', () {
       final a = _FakeBubbleBody(
         position: Vector2(100, 100),
         collisionRadius: 30,
@@ -83,7 +83,7 @@ void main() {
       expect(b.moveDir.x, greaterThan(0));
     });
 
-    test('ne modifie pas les bulles hors de portee', () {
+    test('does not alter bubbles out of range', () {
       final a = _FakeBubbleBody(
         position: Vector2(100, 100),
         collisionRadius: 20,
@@ -103,7 +103,7 @@ void main() {
       expect(b.moveDir, equals(Vector2(-1, 0)));
     });
 
-    test('preserve la continuite spatiale de londe lors de la collision', () {
+    test('preserves wave spatial continuity during collision', () {
       final a = _FakeBubbleBody(
         position: Vector2(100, 100),
         collisionRadius: 30,

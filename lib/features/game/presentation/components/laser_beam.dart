@@ -16,7 +16,7 @@ import 'trajectory_calculator.dart';
 
 import '../bubble_game.dart';
 
-/// A vibrant laser beam whose target can be moved by the user.
+/// A vibrant laser beam whose target can be aimed and fired by the player.
 class LaserBeam extends PositionComponent with HasGameReference<BubbleGame> {
   LaserBeam({
     required this.soundEffects,
@@ -39,7 +39,7 @@ class LaserBeam extends PositionComponent with HasGameReference<BubbleGame> {
   final SoundEffects soundEffects;
   final LaserLabelBox? _label;
 
-  /// Espace entre le bas du mascotte et le panneau de texte.
+  /// Spacing between mascot bottom and label panel.
   static const double _labelGap = 4;
   static const double _viewportMargin = 12;
   static const double _respawnOffset = 2 * 96 / 2.54;
@@ -51,7 +51,7 @@ class LaserBeam extends PositionComponent with HasGameReference<BubbleGame> {
       ..color = newColor;
   }
 
-  /// Retire le panneau de question sans supprimer la mascotte ni le laser.
+  /// Hides the question prompt panel without removing the mascot or laser.
   void hideLabel() => _label?.removeFromParent();
 
   double _edutainerScale = 1;
@@ -65,10 +65,10 @@ class LaserBeam extends PositionComponent with HasGameReference<BubbleGame> {
   bool _shotReturning = false;
   bool _shotActive = false;
 
-  /// Longueur du projectile laser de 1 cm (environ 38 pixels sur base 96 DPI).
+  /// Length of the moving laser projectile segment (approx 38 pixels on 96 DPI).
   static const double projectileLength = 3 * 96 / 2.54;
 
-  /// Vitesse de deplacement du projectile en pixels par seconde.
+  /// Projectile travel speed in logical pixels per second.
   static const double _projectileSpeed = 900.0;
   static const double _returnDuration = 0.05;
 
@@ -85,7 +85,10 @@ class LaserBeam extends PositionComponent with HasGameReference<BubbleGame> {
   Vector2 _endPoint = Vector2.zero();
 
   PositionComponent? _hitTarget;
-  // ── Paints réutilisés ──────────────────────────────────────────────
+
+  // ---------------------------------------------------------------------------
+  // Reusable Paints
+  // ---------------------------------------------------------------------------
 
   late final Paint _outerGlow = Paint()
     ..color = color.withValues(alpha: 0.18)
@@ -107,7 +110,9 @@ class LaserBeam extends PositionComponent with HasGameReference<BubbleGame> {
   final Paint _impactMid = Paint();
   final Paint _impactCore = Paint()..color = Colors.white;
 
-  // ── Edutainer ──────────────────────────────────────────────────────
+  // ---------------------------------------------------------------------------
+  // Edutainer Mascot Integration
+  // ---------------------------------------------------------------------------
 
   static const Size _edutainerSize = Size(150, 180);
   double _animationTime = 0;
@@ -134,15 +139,15 @@ class LaserBeam extends PositionComponent with HasGameReference<BubbleGame> {
         );
   }
 
-  /// Ligne de réapparition des bulles, deux centimètres au-dessus du laser.
+  /// Bubble boundary line positioned above the laser.
   double get bubbleRespawnY => _laserOrigin.y - _respawnOffset;
 
-  /// Origine exacte de depart du tir laser.
+  /// Exact origin point of the laser shot.
   Vector2 get laserOriginPoint => _laserOrigin;
 
   PositionComponent? get hitTarget => _hitTarget;
 
-  /// Adapte la mascotte et son panneau à l'espace disponible dans le canvas.
+  /// Adapts mascot and label box to available viewport space.
   void fitToViewport(Vector2 viewportSize) {
     final maxLabelWidth = (viewportSize.x - _viewportMargin * 2)
         .clamp(48.0, 352.0)
@@ -177,8 +182,7 @@ class LaserBeam extends PositionComponent with HasGameReference<BubbleGame> {
     _label?.position.y = edutainerSize.height / 2 + _labelGap;
   }
 
-  /// Lance un tir en suivant exactement la trajectoire precalculee de la visee.
-  /// Fires along the exact preview path so aiming and impact use the same result.
+  /// Fires along the exact preview path so aiming and impact use the same trajectory.
   void fireTrajectory(TrajectoryResult trajectory) {
     if (_shotActive || trajectory.points.isEmpty) return;
     unawaited(soundEffects.play(Sfx.laser));
@@ -195,8 +199,7 @@ class LaserBeam extends PositionComponent with HasGameReference<BubbleGame> {
     _endPoint = _shotOrigin.clone();
   }
 
-  /// Lance un tir le long de la trajectoire avec ricochets jusqu a la premiere cible rencontree.
-  /// Calculates and fires a path toward [targetPosition] when no preview exists.
+  /// Calculates and fires a projectile along trajectory with bounces toward [targetPosition].
   void fireAt(Vector2 targetPosition) {
     if (_shotActive) return;
     final toTarget = targetPosition - _laserOrigin;
@@ -299,10 +302,10 @@ class LaserBeam extends PositionComponent with HasGameReference<BubbleGame> {
       final headDist = _shotElapsed * _projectileSpeed;
       final tailDist = math.max(0.0, headDist - projectileLength);
 
-      // Decoupe le troncon de 1 cm le long de la trajectoire
+      // Slices the visible projectile segment along the trajectory
       final currentPoints = _slicePath(tailDist, headDist);
 
-      // Rendu des segments de faisceau
+      // Render beam segments
       for (var i = 0; i < currentPoints.length - 1; i++) {
         final startOffset = (currentPoints[i] - position).toOffset();
         final endOffset = (currentPoints[i + 1] - position).toOffset();

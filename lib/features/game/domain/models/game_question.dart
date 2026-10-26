@@ -1,9 +1,9 @@
-/// Représente une question et les éléments affichés pendant une manche.
+/// Represents a question and its displayed choices and knowledge during a round.
 ///
-/// Les listes sont définies comme des constantes dans le catalogue de données
-/// du jeu afin que la logique Flame ne dépende pas de cartes dynamiques.
+/// Choices and knowledge lists are immutable so Flame logic does not rely on
+/// mutable dynamic collections.
 class GameQuestion {
-  /// Crée une question avec ses réponses possibles et ses notions associées.
+  /// Creates a question with its choices and associated knowledge notions.
   const GameQuestion({
     required this.prompt,
     required this.answer,
@@ -12,16 +12,16 @@ class GameQuestion {
     this.nameAudio,
   });
 
-  /// Texte de la question affichée par le laser.
+  /// Question prompt displayed by the laser HUD.
   final String prompt;
 
-  /// Texte de la bulle qui valide la manche.
+  /// Winning answer text that completes the round when hit.
   final String answer;
 
-  /// Réponses qui apparaissent dans les bulles au début de la manche.
+  /// Choices that appear in answer bubbles at the start of the round.
   final List<String> choices;
 
-  /// Notions libérées après une bonne réponse.
+  /// Knowledge notions dispersed after popping the correct answer.
   final List<String> knowledge;
 
   /// Optional asset filename for the spoken answer.

@@ -12,7 +12,8 @@ import '../painter/laser_painter.dart';
 import '../painter/mouth_painter.dart';
 import '../painter/saucer_painter.dart';
 
-/// Orchestrator
+/// Orchestrates all sub-painters to draw one complete frame of the
+/// Edutainer character on a [CustomPainter] canvas.
 class EdutainerPainter extends CustomPainter {
   EdutainerPainter(
     this.pose, {
@@ -35,7 +36,9 @@ class EdutainerPainter extends CustomPainter {
   static const Size designSize = EdutainerContext.designSize;
   static const List<List<String>> symbolSets = MouthPainter.symbolSets;
 
-Offset laserOrigin(Size size) {
+  /// Returns the laser origin point mapped from design space to
+  /// the given widget [size].
+  Offset laserOrigin(Size size) {
     const design = EdutainerContext.designSize;
     final scale = math.min(
       size.width / design.width,

@@ -7,15 +7,18 @@ class BubbleLabel extends PositionComponent {
   /// Creates a label constrained to [box] and centered at [textCenter].
   BubbleLabel({
     required this._text,
-    required this.box,      // available text box
-    required this.textCenter,   // center of this box, in bubble coordinates
+    required this.box, // available text box
+    required this.textCenter, // center of this box, in bubble coordinates
     required this.style,
     this.maxLines = 3,
     this.autoFit = true,
     this.widthFactor = 0.7,
     this.heightFactor = 0.6,
     this.deform,
-  })  : super(anchor: Anchor.center, position: Vector2(textCenter.dx, textCenter.dy));
+  }) : super(
+         anchor: Anchor.center,
+         position: Vector2(textCenter.dx, textCenter.dy),
+       );
 
   final Size box;
   final Offset textCenter;
@@ -62,8 +65,10 @@ class BubbleLabel extends PositionComponent {
     final tp = _tp;
     if (tp == null) return;
 
-    void draw(Canvas c) =>
-        tp.paint(c, Offset(textCenter.dx - tp.width / 2, textCenter.dy - tp.height / 2));
+    void draw(Canvas c) => tp.paint(
+      c,
+      Offset(textCenter.dx - tp.width / 2, textCenter.dy - tp.height / 2),
+    );
 
     final d = deform;
     if (d == null) {

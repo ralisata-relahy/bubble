@@ -1,20 +1,21 @@
 import 'dart:math' as math;
 import 'dart:ui';
+
 import 'package:flame/components.dart';
 import 'package:bubble/core/contracts/laser_target.dart';
 
-/// Resultat du calcul de trajectoire avec ricochets.
+/// Result of deterministic trajectory calculation including multi-bounce segments and hit target.
 class TrajectoryResult {
-  /// Ensemble des points ordonnes formant les segments successifs du faisceau.
+  /// Ordered sequence of 2D vertices forming successive beam segments.
   final List<Vector2> points;
 
-  /// Composant finalement touche a l'extremite du tir, s'il existe.
+  /// Game component struck at the terminal point of the trajectory, if any.
   final PositionComponent? hitComponent;
 
-  /// Cible laser associee a l'impact final.
+  /// LaserTarget interface associated with the final hit.
   final LaserTarget? hitLaserTarget;
 
-  /// Longueur totale cumulee de tous les segments.
+  /// Total cumulative path length across all segments.
   final double totalLength;
 
   const TrajectoryResult({
@@ -25,13 +26,14 @@ class TrajectoryResult {
   });
 }
 
-/// Calculateur deterministe de trajectoire multi-segments avec ricochets lateraux.
+/// Deterministic multi-segment laser trajectory calculator with lateral wall bounces.
 class TrajectoryCalculator {
   TrajectoryCalculator._();
 
-  /// Calcule la trajectoire partant de [origin] le long de [initialDirection].
-  /// Ricoche sur les parois laterales `x = 0` et `x = gameWidth` jusqu'a [maxBounces].
-  /// S'arrete des qu'une cible [LaserTarget] est rencontree ou que le plafond/sol/portee max est atteint.
+  /// Calculates the laser beam trajectory starting at [origin] along [initialDirection].
+  ///
+  /// Bounces off lateral side walls (`x = 0` and `x = gameWidth`) up to [maxBounces] times.
+  /// Stops immediately when a valid [LaserTarget] is struck, or when ceiling/floor/range limits are hit.
   static TrajectoryResult calculate({
     required Vector2 origin,
     required Vector2 initialDirection,
@@ -54,7 +56,7 @@ class TrajectoryCalculator {
       if (remainingLength <= 0.01) break;
 
       // Find the nearest eligible hit before comparing it with wall and edge events.
-      double closestTargetDist = double.infinity;
+      var closestTargetDist = double.infinity;
       PositionComponent? closestComponent;
       LaserTarget? closestTarget;
 
@@ -76,25 +78,25 @@ class TrajectoryCalculator {
         }
       }
 
-      // 2. Calcule la distance jusqu'au prochain mur lateral (gauche x=0 ou droite x=gameWidth)
-      double wallDist = double.infinity;
+      // 2. Calculate distance to nearest lateral wall (left x=0 or right x=gameWidth)
+      var wallDist = double.infinity;
 
       if (currentDir.x < -1e-6) {
-        // Se dirige vers la gauche
+        // Heading towards left wall
         final d = (0.0 - currentOrigin.x) / currentDir.x;
         if (d > 0.01) {
           wallDist = d;
         }
       } else if (currentDir.x > 1e-6) {
-        // Se dirige vers la droite
+        // Heading towards right wall
         final d = (gameWidth - currentOrigin.x) / currentDir.x;
         if (d > 0.01) {
           wallDist = d;
         }
       }
 
-      // 3. Calcule la distance jusqu'au plafond (y=0) ou sol (y=gameHeight)
-      double ceilingDist = double.infinity;
+      // 3. Calculate distance to ceiling (y=0) or floor (y=gameHeight)
+      var ceilingDist = double.infinity;
       if (currentDir.y < -1e-6) {
         final d = (0.0 - currentOrigin.y) / currentDir.y;
         if (d > 0.01) ceilingDist = d;
@@ -117,22 +119,22 @@ class TrajectoryCalculator {
       totalLength += segmentDist;
       remainingLength -= segmentDist;
 
-      // Si une cible est frappee en premier
+      // If a target bubble is struck first
       if (closestTargetDist <= segmentDist && closestTarget != null) {
         finalHitComponent = closestComponent;
         finalHitTarget = closestTarget;
         break;
       }
 
-      // Si la portee maximale est atteinte ou si on touche le plafond/sol
+      // If maximum reach is reached or if ceiling/floor boundary is struck
       if (remainingLength <= 0.01 || ceilingDist <= segmentDist) {
         break;
       }
 
-      // Si on touche un mur lateral et qu'on a le droit de rebondir
+      // If a lateral wall is struck and bounces remain
       if (wallDist <= segmentDist && bounce < maxBounces) {
         currentOrigin = nextPoint;
-        // Ricochet : inverse la vitesse horizontale dx
+        // Specular bounce: negate horizontal velocity component
         currentDir = Vector2(-currentDir.x, currentDir.y).normalized();
       } else {
         break;
@@ -147,7 +149,7 @@ class TrajectoryCalculator {
     );
   }
 
-  /// Intersection rayon - ellipse alignee sur les axes.
+  /// Ray-to-axis-aligned-ellipse intersection check.
   static double? _intersectEllipse(
     Vector2 origin,
     Vector2 direction,

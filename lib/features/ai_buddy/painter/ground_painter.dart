@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import '../models/character_pose.dart';
+
 import 'package:flutter/material.dart';
 
 import 'edutainer_context.dart';
@@ -34,7 +35,9 @@ class GroundPainter {
     final rect = Rect.fromCenter(center: Offset.zero, width: 86, height: 66);
     final oval = Path()..addOval(rect);
     canvas.drawPath(
-        oval, Paint()..shader = ctx.bodyGradient.createShader(rect));
+      oval,
+      Paint()..shader = ctx.bodyGradient.createShader(rect),
+    );
 
     // sole
     canvas.save();

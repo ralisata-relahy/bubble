@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../application/controllers/game_controller.dart';
 import '../../../../core/presentation/widgets/hud_button.dart';
 
+/// Flutter overlay showing the skip button during the knowledge dispersal phase.
 class AccelerateOverlay extends StatelessWidget {
   const AccelerateOverlay({required this.controller, super.key});
 

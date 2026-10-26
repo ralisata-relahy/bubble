@@ -52,16 +52,15 @@ class ArcStyle {
     double? width,
     double? blur,
     bool? visible,
-  }) =>
-      ArcStyle(
-        color: color ?? this.color,
-        startAngle: startAngle ?? this.startAngle,
-        sweep: sweep ?? this.sweep,
-        radiusFactor: radiusFactor ?? this.radiusFactor,
-        width: width ?? this.width,
-        blur: blur ?? this.blur,
-        visible: visible ?? this.visible,
-      );
+  }) => ArcStyle(
+    color: color ?? this.color,
+    startAngle: startAngle ?? this.startAngle,
+    sweep: sweep ?? this.sweep,
+    radiusFactor: radiusFactor ?? this.radiusFactor,
+    width: width ?? this.width,
+    blur: blur ?? this.blur,
+    visible: visible ?? this.visible,
+  );
 }
 
 /// Definition visuelle d'un point lumineux ou halo elliptique.
@@ -107,16 +106,15 @@ class SpotStyle {
     double? rotation,
     double? blur,
     bool? visible,
-  }) =>
-      SpotStyle(
-        color: color ?? this.color,
-        offset: offset ?? this.offset,
-        width: width ?? this.width,
-        height: height ?? this.height,
-        rotation: rotation ?? this.rotation,
-        blur: blur ?? this.blur,
-        visible: visible ?? this.visible,
-      );
+  }) => SpotStyle(
+    color: color ?? this.color,
+    offset: offset ?? this.offset,
+    width: width ?? this.width,
+    height: height ?? this.height,
+    rotation: rotation ?? this.rotation,
+    blur: blur ?? this.blur,
+    visible: visible ?? this.visible,
+  );
 }
 
 /// Configuration esthetique complete d'une bulle.
@@ -274,14 +272,14 @@ class BubbleStyle {
 
   /// Teinte rapidement la bulle ainsi que ses reflets principaux.
   BubbleStyle tinted(Color color) => copyWith(
-        baseColor: color,
-        sideReflection:
-            sideReflection.copyWith(color: color.withValues(alpha: 0.35)),
-        rightGlint: rightGlint.copyWith(color: color.withValues(alpha: 0.9)),
-        mainHighlight:
-            mainHighlight.copyWith(color: color.withValues(alpha: 0.95)),
-        dot: dot.copyWith(color: color.withValues(alpha: 0.75)),
-      );
+    baseColor: color,
+    sideReflection: sideReflection.copyWith(
+      color: color.withValues(alpha: 0.35),
+    ),
+    rightGlint: rightGlint.copyWith(color: color.withValues(alpha: 0.9)),
+    mainHighlight: mainHighlight.copyWith(color: color.withValues(alpha: 0.95)),
+    dot: dot.copyWith(color: color.withValues(alpha: 0.75)),
+  );
 
   /// Genere une copie immutabilisee avec les champs fournis modifies.
   BubbleStyle copyWith({
@@ -311,33 +309,32 @@ class BubbleStyle {
     ArcStyle? bottomShade,
     SpotStyle? mainHighlight,
     SpotStyle? dot,
-  }) =>
-      BubbleStyle(
-        shape: shape ?? this.shape,
-        size: size ?? this.size,
-        iridescence: iridescence ?? this.iridescence,
-        baseColor: baseColor ?? this.baseColor,
-        bodyCenterAlpha: bodyCenterAlpha ?? this.bodyCenterAlpha,
-        bodyMidAlpha: bodyMidAlpha ?? this.bodyMidAlpha,
-        bodyEdgeAlpha: bodyEdgeAlpha ?? this.bodyEdgeAlpha,
-        radius: radius ?? this.radius,
-        bodyStops: bodyStops ?? this.bodyStops,
-        rimColor: rimColor ?? this.rimColor,
-        rimAlpha: rimAlpha ?? this.rimAlpha,
-        rimWidth: rimWidth ?? this.rimWidth,
-        rimRadiusFactor: rimRadiusFactor ?? this.rimRadiusFactor,
-        crescentColor: crescentColor ?? this.crescentColor,
-        crescentVisible: crescentVisible ?? this.crescentVisible,
-        crescentAlphas: crescentAlphas ?? this.crescentAlphas,
-        crescentStops: crescentStops ?? this.crescentStops,
-        crescentOffset: crescentOffset ?? this.crescentOffset,
-        crescentOuterFactor: crescentOuterFactor ?? this.crescentOuterFactor,
-        crescentInnerFactor: crescentInnerFactor ?? this.crescentInnerFactor,
-        crescentBlur: crescentBlur ?? this.crescentBlur,
-        sideReflection: sideReflection ?? this.sideReflection,
-        rightGlint: rightGlint ?? this.rightGlint,
-        bottomShade: bottomShade ?? this.bottomShade,
-        mainHighlight: mainHighlight ?? this.mainHighlight,
-        dot: dot ?? this.dot,
-      );
+  }) => BubbleStyle(
+    shape: shape ?? this.shape,
+    size: size ?? this.size,
+    iridescence: iridescence ?? this.iridescence,
+    baseColor: baseColor ?? this.baseColor,
+    bodyCenterAlpha: bodyCenterAlpha ?? this.bodyCenterAlpha,
+    bodyMidAlpha: bodyMidAlpha ?? this.bodyMidAlpha,
+    bodyEdgeAlpha: bodyEdgeAlpha ?? this.bodyEdgeAlpha,
+    radius: radius ?? this.radius,
+    bodyStops: bodyStops ?? this.bodyStops,
+    rimColor: rimColor ?? this.rimColor,
+    rimAlpha: rimAlpha ?? this.rimAlpha,
+    rimWidth: rimWidth ?? this.rimWidth,
+    rimRadiusFactor: rimRadiusFactor ?? this.rimRadiusFactor,
+    crescentColor: crescentColor ?? this.crescentColor,
+    crescentVisible: crescentVisible ?? this.crescentVisible,
+    crescentAlphas: crescentAlphas ?? this.crescentAlphas,
+    crescentStops: crescentStops ?? this.crescentStops,
+    crescentOffset: crescentOffset ?? this.crescentOffset,
+    crescentOuterFactor: crescentOuterFactor ?? this.crescentOuterFactor,
+    crescentInnerFactor: crescentInnerFactor ?? this.crescentInnerFactor,
+    crescentBlur: crescentBlur ?? this.crescentBlur,
+    sideReflection: sideReflection ?? this.sideReflection,
+    rightGlint: rightGlint ?? this.rightGlint,
+    bottomShade: bottomShade ?? this.bottomShade,
+    mainHighlight: mainHighlight ?? this.mainHighlight,
+    dot: dot ?? this.dot,
+  );
 }

@@ -57,11 +57,41 @@ class BubbleConfig {
         size: Size(w, w * (0.7 + rng.nextDouble() * 0.3)),
       ),
       speed: 10 + rng.nextDouble() * 30,
-      direction: direction ??
+      direction:
+          direction ??
           BubbleDirection.values[rng.nextInt(BubbleDirection.values.length)],
       waveAmplitude: 3 + rng.nextDouble() * 10,
       waveFrequency: 1 + rng.nextDouble(),
       breathSpeed: 0.8 + rng.nextDouble(),
+    );
+  }
+
+  /// Returns a copy of this configuration with given values updated.
+  BubbleConfig copyWith({
+    BubbleStyle? style,
+    String? text,
+    double? speed,
+    BubbleDirection? direction,
+    Vector2? customDirection,
+    double? waveAmplitude,
+    double? waveFrequency,
+    double? breathAmplitude,
+    double? breathSpeed,
+    int? maxLines,
+    bool? autoFit,
+  }) {
+    return BubbleConfig(
+      style: style ?? this.style,
+      text: text ?? this.text,
+      speed: speed ?? this.speed,
+      direction: direction ?? this.direction,
+      customDirection: customDirection ?? this.customDirection,
+      waveAmplitude: waveAmplitude ?? this.waveAmplitude,
+      waveFrequency: waveFrequency ?? this.waveFrequency,
+      breathAmplitude: breathAmplitude ?? this.breathAmplitude,
+      breathSpeed: breathSpeed ?? this.breathSpeed,
+      maxLines: maxLines ?? this.maxLines,
+      autoFit: autoFit ?? this.autoFit,
     );
   }
 }

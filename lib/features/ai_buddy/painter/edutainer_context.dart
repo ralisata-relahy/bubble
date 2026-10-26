@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import '../models/character_pose.dart';
 import '../models/saucer_palette.dart';
+
 import 'package:flutter/material.dart';
 
 /// Shares the current pose, palette, and design-space transforms across painters.
@@ -12,8 +13,8 @@ class EdutainerContext {
     this.laserColor = const Color(0xFF4DF0FF),
     Color? bodyColor,
     Color? saucerColor,
-  })  : bodyGradient = _buildBodyGradient(bodyColor),
-        saucer = SaucerPalette.from(saucerColor);
+  }) : bodyGradient = _buildBodyGradient(bodyColor),
+       saucer = SaucerPalette.from(saucerColor);
 
   final EdutainerPose pose;
   final Color laserColor;

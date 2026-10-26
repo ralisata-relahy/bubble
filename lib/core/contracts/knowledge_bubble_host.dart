@@ -1,14 +1,14 @@
-/// État minimum du jeu nécessaire au cycle de vie des bulles de connaissance.
+/// Minimum game state contract required for the lifecycle of knowledge bubbles.
 ///
-/// Ce contrat évite aux composants de bulle de dépendre de l'implémentation
-/// concrète de `BubbleGame`.
+/// This interface prevents bubble components from directly coupling to the
+/// concrete implementation of `BubbleGame`.
 abstract interface class KnowledgeBubbleHost {
-  /// Indique si les bulles de réponse sont suspendues pendant la transition.
+  /// Indicates whether regular answer bubbles are paused during victory transitions.
   bool get isFrozen;
 
-  /// Temps écoulé depuis le début de la transition courante.
+  /// Elapsed time since the start of the current transition in seconds.
   double get elapsedFreezeTime;
 
-  /// Hauteur à laquelle les bulles de réponse réapparaissent après être sorties.
+  /// Y-coordinate at which answer bubbles respawn after leaving the screen.
   double get bubbleRespawnY;
 }
