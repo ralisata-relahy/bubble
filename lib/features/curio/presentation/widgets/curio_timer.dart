@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:get/get.dart';
 
 import '../../../game/configuration/game_configuration.dart';
+import 'character_backup_widget.dart';
 import 'character_time_gauge.dart';
-import '../../../game/presentation/bubble_game.dart';
+import '../../../game/views/presentation/bubble_game.dart';
 
 /// Places Curio, the time gauge, and the critical alert neon border within the Flutter overlay.
 class CurioOverlay extends StatefulWidget {
@@ -65,25 +67,32 @@ class _CurioOverlayState extends State<CurioOverlay>
 
         // Curio character and time gauge bar
         SafeArea(
-          child: Align(
-            alignment: Alignment.topLeft,
-            child: Padding(
-              padding: const EdgeInsets.only(bottom: 100, top: 8),
-              child: CharacterTimeGauge(
-                key: widget.game.gaugeKey,
-                isCriticalNotifier:
-                    widget.game.gameController.isCriticalNotifier,
-                isTimerPausedNotifier:
-                    widget.game.gameController.isTimerPausedNotifier,
-                soundEffects: widget.game.soundEffects,
-                duration: GameConfiguration.gameDuration,
-                barHeight: availableHeight - 230,
-                barWidth: 15,
-                characterSize: const Size(90, 94),
-                onFinished: widget.game.onTimeUp,
-              ),
-            ),
-          ),
+          child: Obx(() {
+            final caged = widget.game.gameController.isCaged.value;
+            if (caged) {
+              return Align(
+                alignment: Alignment.topLeft,
+                child: Padding(
+                  padding: const EdgeInsets.only(left: 2, top: 100),
+                  child: CharacterBackupWidget(
+                    size: const Size(100, 109),
+                  ),
+                ),
+              );
+            }
+            return CharacterTimeGauge(
+              key: widget.game.gaugeKey,
+              isCriticalNotifier: widget.game.gameController.isCriticalNotifier,
+              isTimerPausedNotifier:
+                  widget.game.gameController.isTimerPausedNotifier,
+              soundEffects: widget.game.soundEffects,
+              duration: GameConfiguration.gameDuration,
+              barHeight: availableHeight - 230,
+              barWidth: 15,
+              characterSize: const Size(90, 94),
+              onFinished: widget.game.onTimeUp,
+            );
+          }),
         ),
       ],
     );

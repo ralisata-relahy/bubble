@@ -1,8 +1,11 @@
 import 'dart:async';
 import 'dart:math' show min;
 
+import 'package:bubble/features/curio/controllers/curio_sound_controller.dart';
+import 'package:bubble/features/game/controllers/game_controller.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
+import 'package:get/get.dart';
 
 import 'character_backup_painter.dart' show CharacterBackupPainter;
 import '../../domain/models/mood.dart' show Mood, MoodParams;
@@ -134,25 +137,64 @@ class _CharacterBackupWidgetState extends State<CharacterBackupWidget>
         final scale = min(1.0, min(widthScale, heightScale));
         final fittedSize = Size(size.width * scale, size.height * scale);
 
-        return GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTap: _handleTap,
-          child: SizedBox(
-            width: fittedSize.width,
-            height: fittedSize.height,
-            child: CustomPaint(
-              size: fittedSize,
-              painter: CharacterBackupPainter(
-                time: _time,
-                hop: _hopCtrl,
-                params: _current,
-                isMoodTransitioning: () => _moodCtrl.isAnimating,
-                repaint: _repaint,
+        return SizedBox(
+          width: fittedSize.width,
+          height: fittedSize.height,
+          child: Stack(
+            children: [
+              GestureDetector(
+                behavior: HitTestBehavior.translucent,
+                onTap: _handleTap,
+                child: SizedBox(
+                  width: fittedSize.width,
+                  height: fittedSize.height,
+                  child: CustomPaint(
+                    size: fittedSize,
+                    painter: CharacterBackupPainter(
+                      time: _time,
+                      hop: _hopCtrl,
+                      params: _current,
+                      isMoodTransitioning: () => _moodCtrl.isAnimating,
+                      repaint: _repaint,
+                    ),
+                  ),
+                ),
               ),
-            ),
+              Obx(() {
+                final caged = _gameController?.isCaged.value ?? false;
+                if (!caged) return const SizedBox.shrink();
+
+                return Positioned(
+  top: 70,
+  left: 30,
+  child: Listener(
+    behavior: HitTestBehavior.translucent,
+    onPointerDown: (_) => debugPrint('POINTER reached the sound button'),
+    child: IconButton.filled(
+      onPressed: _playSound,
+      padding: const EdgeInsets.all(8),
+      constraints: const BoxConstraints(),
+      icon: const Icon(Icons.volume_up_outlined, color: Colors.white, size: 18),
+    ),
+  ),
+);
+              }),
+            ],
           ),
         );
       },
     );
+  }
+
+  /// Instance partagée du controller (null si non enregistrée).
+  GameController? get _gameController =>
+      Get.isRegistered<GameController>() ? Get.find<GameController>() : null;
+
+  void _playSound() {
+    print('biiiiiiiiiiiiiiiiiiiiiiiiiip');
+    final c = Get.isRegistered<CurioSoundController>()
+        ? Get.find<CurioSoundController>()
+        : Get.put(CurioSoundController());
+    c.play();
   }
 }

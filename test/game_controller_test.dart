@@ -1,6 +1,6 @@
-import 'package:bubble/features/game/application/contracts/game_command_port.dart';
-import 'package:bubble/features/game/application/bindings/game_binding.dart';
-import 'package:bubble/features/game/application/controllers/game_controller.dart';
+import 'package:bubble/features/game/bindings/game_binding.dart';
+import 'package:bubble/features/game/contracts/game_command_port.dart';
+import 'package:bubble/features/game/controllers/game_controller.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:get/get.dart';
 
@@ -13,6 +13,16 @@ class _FakeGameCommands implements GameCommandPort {
 
   @override
   void accelerateKnowledge() => accelerateCount++;
+
+  @override
+  void finishSpeakingWord() {
+    // TODO: implement finishSpeakingWord
+  }
+
+  @override
+  void speakWordScreen() {
+    // TODO: implement speakWordScreen
+  }
 }
 
 void main() {

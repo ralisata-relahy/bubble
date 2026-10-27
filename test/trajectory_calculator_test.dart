@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flame/components.dart';
-import 'package:bubble/features/game/presentation/components/trajectory_calculator.dart';
+import 'package:bubble/features/game/views/presentation/components/trajectory_calculator.dart';
 
 void main() {
   group('TrajectoryCalculator', () {

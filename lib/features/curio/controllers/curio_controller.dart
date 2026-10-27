@@ -1,3 +1,4 @@
+import 'package:audioplayers/audioplayers.dart';
 import 'package:get/get.dart';
 
 import '../domain/models/mood.dart';
@@ -15,6 +16,22 @@ class CurioController extends GetxController {
 
   /// The active emotional expression of Curio.
   final currentMood = Mood.excited.obs;
+  final AudioPlayer _player = AudioPlayer();
+  final RxString soundAsset = ''.obs;
+
+  @override
+  void onInit() {
+    super.onInit();
+    ever(soundAsset, (value) {
+      if (value.isNotEmpty) play();
+    });
+  }
+  Future<void> play([String? asset]) async {
+    final target = asset ?? soundAsset.value;
+    if (target.isEmpty) return;
+    await _player.stop();
+    await _player.play(AssetSource(target));
+  }
 
   /// Updates Curio's mood and triggers matching vocal reactions when the mood changes.
   void updateMood(Mood newMood) {
@@ -27,6 +44,7 @@ class CurioController extends GetxController {
   @override
   void onClose() {
     _audioService?.dispose();
+    _player.dispose();
     super.onClose();
   }
 }

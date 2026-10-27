@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
 import 'features/game/bindings/game_binding.dart';
-import 'features/game/presentation/bubble_game.dart';
+import 'features/game/views/presentation/bubble_game.dart';
 import 'features/game/views/game_view.dart';
 
 /// Root application widget.

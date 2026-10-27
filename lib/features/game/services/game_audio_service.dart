@@ -14,7 +14,7 @@ class GameAudioService {
 
   /// Plays a question's optional pronunciation asset when one is configured.
   Future<void> playAnswer(GameQuestion question) async {
-    final audioName = question.nameAudio;
+    final audioName = question.nameAudiofr;
     if (audioName == null || audioName.isEmpty) return;
 
     final audioDirectory = question.answer == _frenchThankYouAnswer

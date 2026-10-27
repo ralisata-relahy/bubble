@@ -1,7 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
-
-import '../application/contracts/game_command_port.dart';
+import '../contracts/game_command_port.dart';
 
 /// Application GetX controller managing observable session state and high-level commands.
 ///
@@ -25,6 +24,11 @@ class GameController extends GetxController {
 
   GameCommandPort? _game;
 
+  // cage control
+  static const initialBarCount = 5;
+  final isCaged=false.obs;
+  final barreCount=initialBarCount.obs;
+
   /// Whether the session is currently in a won state.
   bool get isWon => won.value;
 
@@ -45,6 +49,12 @@ class GameController extends GetxController {
   /// Sends a command to accelerate knowledge dispersal animation.
   void accelerateKnowledge() => _game?.accelerateKnowledge();
 
+   /// Demande au jeu d'afficher l'écran du mot à prononcer.
+  void speakWordScreen() => _game?.speakWordScreen();
+
+  /// Demande au jeu de terminer l'écran du mot et d'afficher la victoire.
+  void finishSpeakingWord() => _game?.finishSpeakingWord();
+
   /// Marks the current round as complete.
   ///
   /// Returns false if the game is already in a terminal state (won or over).
@@ -60,7 +70,11 @@ class GameController extends GetxController {
     won.value = false;
     gameOver.value = false;
   }
-
+  
+  void decrementeBarCount(){
+    if (barreCount.value<=0)return;
+    barreCount.value--;
+  }
   /// Marks the entire multi-round session as completed and won.
   void finishGame() {
     won.value = true;

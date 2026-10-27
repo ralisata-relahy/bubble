@@ -9,7 +9,8 @@ class GameQuestion {
     required this.answer,
     required this.choices,
     required this.knowledge,
-    this.nameAudio,
+    this.nameAudiofr,
+    this.nameAudioEn,
   });
 
   /// Question prompt displayed by the laser HUD.
@@ -25,5 +26,7 @@ class GameQuestion {
   final List<String> knowledge;
 
   /// Optional asset filename for the spoken answer.
-  final String? nameAudio;
+  final String? nameAudiofr;
+
+  final String? nameAudioEn;
 }

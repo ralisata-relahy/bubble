@@ -80,6 +80,14 @@ flutter:
     - assets/audio/bonjour.mp3
     - assets/audio/aurevoir.mp3
     - assets/audio/french/thank_you_fr.mp3
+    - assets/audio/american_english/hello_en_us.mp3
+    - assets/audio/american_english/goodbye_en_us.mp3
+    - assets/audio/american_english/thanks_en_us.mp3
+    - assets/audio/american_english/please_en_us.mp3
+    - assets/audio/american_english/sorry_en_us.mp3
+    - assets/audio/american_english/yes_en_us.mp3
+    - assets/audio/american_english/no_en_us.mp3
+
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

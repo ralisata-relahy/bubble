@@ -1,9 +1,9 @@
 import 'package:bubble/core/services/audio/sound_effect.dart';
+import 'package:bubble/features/game/controllers/game_controller.dart';
 import 'package:flutter/material.dart';
 
 import 'app.dart';
-import 'features/game/controllers/game_controller.dart';
-import 'features/game/presentation/bubble_game.dart';
+import 'features/game/views/presentation/bubble_game.dart';
 
 /// Main application entry point.
 ///

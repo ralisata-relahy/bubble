@@ -1,7 +1,7 @@
 import 'package:flame/components.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:bubble/features/game/presentation/components/knowledge_bubble_scatter.dart';
+import 'package:bubble/features/game/views/presentation/components/knowledge_bubble_scatter.dart';
 
 void main() {
   group('KnowledgeBubbleScatterLayout', () {
